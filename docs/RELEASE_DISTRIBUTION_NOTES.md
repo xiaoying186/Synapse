@@ -1,8 +1,9 @@
-# Synapse V6.5 Release Distribution Notes
+# Synapse 0.0.0 Public Baseline Distribution Notes
 
-These notes describe the guarded Windows MSI release path for the V6.5
-local-first baseline. They are intentionally conservative: do not use them to
-claim unrestricted automation, external delivery, or production cloud readiness.
+These notes describe the guarded Windows MSI release path for Synapse `0.0.0`,
+the initial public baseline aligned with internal `Synapse Design V6.6`. They
+are intentionally conservative: do not use them to claim unrestricted
+automation, external delivery, or production cloud readiness.
 
 ## Release Preconditions
 
@@ -139,7 +140,7 @@ Before publishing a GitHub snapshot or release:
   run `npm.cmd run git:bootstrap -- --repair-empty-git --yes` when no previous
   history needs to be preserved.
 - `npm.cmd run preflight:release` passes.
-- The `V6.5 Local Baseline` GitHub Actions workflow passes after pushing. It
+- The `Synapse 0.0.0 Public Baseline` GitHub Actions workflow passes after pushing. It
   verifies local baseline gates and does not replace MSI packaging or signing
   verification.
 - `git status --short` contains only intentional source and documentation
@@ -148,7 +149,7 @@ Before publishing a GitHub snapshot or release:
   generated MSI files are not committed.
 - No webhook URLs, SMTP credentials, signing credentials, `.env` files, or local
   user data are committed.
-- The V6.5 design document is included only if it is intended to be public.
+- Internal Design V6.6 documents are included only if they are intended to be public.
 - Release notes clearly say this is a guarded local-first baseline.
 
 ## Do Not Claim In This Baseline

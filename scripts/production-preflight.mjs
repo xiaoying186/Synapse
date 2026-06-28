@@ -8,6 +8,10 @@ const checks = [];
 const staticOnly = process.argv.includes("--static");
 const releaseMode = process.argv.includes("--release");
 const jsonOutput = process.argv.includes("--json");
+const PUBLIC_VERSION = "0.0.0";
+const INTERNAL_DESIGN_VERSION = "V6.6";
+const PUBLIC_BASELINE_NAME = `Synapse ${PUBLIC_VERSION} Public Baseline`;
+const INTERNAL_DESIGN_ALIGNMENT = `Synapse Design ${INTERNAL_DESIGN_VERSION}`;
 
 function pass(id, detail, remediation = null) {
   checks.push({ id, state: "pass", detail, remediation });
@@ -30,7 +34,7 @@ function readProtectedText(path, id, label) {
     fail(
       id,
       `${label} is missing or unreadable: ${error.message}`,
-      `Restore ${path} before using the V6.5 production or release baseline.`,
+      `Restore ${path} before using the ${PUBLIC_BASELINE_NAME} production or release baseline.`,
     );
     return "";
   }
@@ -61,7 +65,7 @@ function assertTomlValue(raw, section, key, expected, id) {
     fail(
       id,
       `Expected [${section}].${key} = ${expected}, found ${value ?? "missing"}`,
-      `Set [${section}].${key} back to ${expected} before using the V6.5 local production baseline.`,
+      `Set [${section}].${key} back to ${expected} before using the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -93,6 +97,28 @@ const gitattributes = readProtectedText(".gitattributes", "gitattributes-file", 
 readProtectedText("package-lock.json", "npm-lockfile", "npm lockfile");
 const cargoToml = readProtectedText("src-tauri/Cargo.toml", "cargo-manifest", "Cargo manifest");
 readProtectedText("src-tauri/Cargo.lock", "cargo-lockfile", "Cargo lockfile");
+if (packageJson.version === PUBLIC_VERSION) {
+  pass("package-public-version", `package.json version is ${PUBLIC_VERSION}`);
+} else {
+  fail(
+    "package-public-version",
+    `Expected package.json version ${PUBLIC_VERSION}, found ${packageJson.version ?? "missing"}`,
+    `Keep public package metadata on ${PUBLIC_BASELINE_NAME} unless intentionally releasing a new public software version.`,
+  );
+}
+if (
+  cargoToml.includes(`version = "${PUBLIC_VERSION}"`) &&
+  cargoToml.includes(`Synapse ${PUBLIC_VERSION}`) &&
+  cargoToml.includes(INTERNAL_DESIGN_VERSION)
+) {
+  pass("cargo-public-version-description", "Cargo manifest separates public version and internal design alignment");
+} else {
+  fail(
+    "cargo-public-version-description",
+    "Cargo manifest must use public version metadata and internal design alignment wording.",
+    `Set src-tauri/Cargo.toml version to ${PUBLIC_VERSION} and mention ${INTERNAL_DESIGN_ALIGNMENT} in the description.`,
+  );
+}
 if (packageJson.dependencies?.["@tauri-apps/api"] === "2.10.1") {
   pass("tauri-api-version", "@tauri-apps/api pinned to 2.10.1");
 } else {
@@ -144,6 +170,15 @@ if (cargoDependencyVersion(cargoToml, "build-dependencies", "tauri-build") === "
 }
 
 const tauriConfig = JSON.parse(readText("src-tauri/tauri.conf.json"));
+if (tauriConfig.version === PUBLIC_VERSION) {
+  pass("tauri-public-version", `Tauri config version is ${PUBLIC_VERSION}`);
+} else {
+  fail(
+    "tauri-public-version",
+    `Expected Tauri config version ${PUBLIC_VERSION}, found ${tauriConfig.version ?? "missing"}`,
+    `Keep Tauri installer metadata on ${PUBLIC_BASELINE_NAME} unless intentionally releasing a new public software version.`,
+  );
+}
 if (tauriConfig.identifier === "com.synapse.local") {
   pass("tauri-identifier", "Tauri identifier is com.synapse.local");
 } else {
@@ -158,7 +193,7 @@ if (typeof tauriConfig.app?.security?.csp === "string" && tauriConfig.app.securi
 } else {
   fail(
     "tauri-csp",
-    "Tauri CSP must not be null for the V6.5 production baseline",
+    `Tauri CSP must not be null for the ${PUBLIC_BASELINE_NAME}`,
     "Configure a restrictive app.security.csp in src-tauri/tauri.conf.json.",
   );
 }
@@ -198,8 +233,14 @@ if (gitattributes) {
     "*.tsx text eol=lf",
     "*.md text eol=lf",
     "*.docx binary",
+    "*.pdf binary",
+    "*.pptx binary",
+    "*.xlsx binary",
     "*.png binary",
+    "*.icns binary",
     "*.msi binary",
+    "*.7z binary",
+    "*.rar binary",
   ];
   const missingGitattributesItems = requiredGitattributesItems.filter(
     (item) => !gitattributes.includes(item),
@@ -218,16 +259,76 @@ checkSensitiveFilesAbsent();
 checkHardcodedSecretsAbsent();
 
 const releaseChecklist = readProtectedText(
-  "PRODUCTION_RELEASE_CHECKLIST.md",
+  "docs/RELEASE_CHECKLIST.md",
   "release-checklist-file",
   "Release checklist",
 );
 const releaseDistributionNotes = readProtectedText(
-  "RELEASE_DISTRIBUTION_NOTES.md",
+  "docs/RELEASE_DISTRIBUTION_NOTES.md",
   "release-distribution-notes-file",
   "Release distribution notes",
 );
 const readme = readProtectedText("README.md", "readme-file", "README");
+const license = readProtectedText("LICENSE", "license-file", "License");
+const securityPolicy = readProtectedText("SECURITY.md", "security-policy-file", "Security policy");
+const contributing = readProtectedText("CONTRIBUTING.md", "contributing-file", "Contributing guide");
+const envExample = readProtectedText(".env.example", "env-example-file", "Environment example");
+const versioning = readProtectedText("VERSIONING.md", "versioning-file", "Versioning policy");
+const capabilityMatrix = readProtectedText(
+  "docs/CAPABILITY_MATRIX.md",
+  "capability-matrix-file",
+  "Capability matrix",
+);
+const configCapabilityMatrix = readProtectedText(
+  "docs/CONFIG_CAPABILITY_MATRIX.md",
+  "config-capability-matrix-file",
+  "Config capability matrix",
+);
+const sourceRegistryDoc = readProtectedText(
+  "docs/SOURCE_REGISTRY.md",
+  "source-registry-doc-file",
+  "Data Source Registry documentation",
+);
+const publicBaselineStatus = readProtectedText(
+  "docs/PUBLIC_BASELINE_STATUS.md",
+  "public-baseline-status-file",
+  "Public baseline status",
+);
+const claimBoundaries = readProtectedText(
+  "docs/CLAIM_BOUNDARIES.md",
+  "claim-boundaries-file",
+  "Claim boundaries",
+);
+const architectureOverview = readProtectedText(
+  "docs/ARCHITECTURE_OVERVIEW.md",
+  "architecture-overview-file",
+  "Architecture overview",
+);
+const publicRoadmap = readProtectedText(
+  "docs/PUBLIC_ROADMAP.md",
+  "public-roadmap-file",
+  "Public roadmap",
+);
+const bugReportTemplate = readProtectedText(
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  "bug-report-template-file",
+  "Bug report template",
+);
+const featureRequestTemplate = readProtectedText(
+  ".github/ISSUE_TEMPLATE/feature_request.yml",
+  "feature-request-template-file",
+  "Feature request template",
+);
+const securityBoundaryTemplate = readProtectedText(
+  ".github/ISSUE_TEMPLATE/security_boundary.yml",
+  "security-boundary-template-file",
+  "Security boundary issue template",
+);
+const pullRequestTemplate = readProtectedText(
+  ".github/pull_request_template.md",
+  "pull-request-template-file",
+  "Pull request template",
+);
 const githubWorkflow = readProtectedText(
   ".github/workflows/v65-local-baseline.yml",
   "github-local-baseline-workflow-file",
@@ -328,6 +429,16 @@ const httpSource = readProtectedText(
   "http-source-file",
   "HTTP source adapter",
 );
+const sourceRegistry = readProtectedText(
+  "src-tauri/src/domains/source_registry.rs",
+  "source-registry-domain-file",
+  "Data Source Registry domain",
+);
+const sourceRegistryPanel = readProtectedText(
+  "src/components/SourceRegistryPanel.tsx",
+  "source-registry-panel-file",
+  "Data Source Registry panel",
+);
 const deviceSync = readProtectedText(
   "src-tauri/src/domains/device_sync.rs",
   "device-sync-file",
@@ -368,9 +479,9 @@ const uiSmoke = readProtectedText("scripts/ui-smoke.mjs", "ui-smoke-file", "UI s
 const viteConfig = readProtectedText("vite.config.ts", "vite-config-file", "Vite config");
 const appShell = readProtectedText("src/App.tsx", "app-shell-file", "App shell");
 const alignmentMatrix = readProtectedText(
-  "V65_ALIGNMENT_MATRIX.md",
-  "v65-alignment-matrix-file",
-  "V6.5 alignment matrix",
+  "docs/CAPABILITY_MATRIX.md",
+  "public-capability-matrix-file",
+  "public baseline alignment matrix",
 );
 const requiredNonGoals = [
   "No direct CLI Agent execution",
@@ -378,21 +489,22 @@ const requiredNonGoals = [
   "No automatic Feishu or WeChat delivery",
   "No automatic C drive cleanup or system file deletion",
   "No automatic L2 writes without explicit review",
+  "Do not include internal design documents",
 ];
 if (releaseChecklist) {
   const requiredChecklistItems = [
     ...requiredNonGoals,
-    ".tmp/release-evidence/release-summary.md",
-    "documentation-boundary summary",
+    "docs/CLAIM_BOUNDARIES.md",
+    "docs/CAPABILITY_MATRIX.md",
   ];
   const missingChecklistItems = requiredChecklistItems.filter((item) => !releaseChecklist.includes(item));
   if (missingChecklistItems.length === 0) {
-    pass("v65-release-checklist", "Release checklist includes V6.5 non-goals and release summary review");
+    pass("public-release-checklist", `Release checklist includes ${PUBLIC_BASELINE_NAME} non-goals and release summary review`);
   } else {
     fail(
-      "v65-release-checklist",
+      "public-release-checklist",
       `Missing checklist item(s): ${missingChecklistItems.join(" / ")}`,
-      "Restore the V6.5 non-goal and release-summary checklist so release review cannot accidentally claim unsafe automation.",
+      `Restore the ${PUBLIC_BASELINE_NAME} release checklist so release review cannot accidentally claim unsafe automation or publish private planning material.`,
     );
   }
 }
@@ -410,20 +522,31 @@ if (releaseDistributionNotes) {
     (item) => !releaseDistributionNotes.includes(item),
   );
   if (missingDistributionNotes.length === 0) {
-    pass("release-distribution-notes", "Release notes cover signing, hashes, and V6.5 claim boundaries");
+    pass("release-distribution-notes", `Release notes cover signing, hashes, and ${PUBLIC_BASELINE_NAME} claim boundaries`);
   } else {
     fail(
       "release-distribution-notes",
       `Missing release distribution note item(s): ${missingDistributionNotes.join(" / ")}`,
-      "Restore RELEASE_DISTRIBUTION_NOTES.md before publishing a release artifact.",
+      "Restore docs/RELEASE_DISTRIBUTION_NOTES.md before publishing a release artifact.",
     );
   }
 }
 
 if (readme) {
   const requiredReadmeItems = [
-    "GitHub Readiness",
+    "Public Repository Policy",
     "Local Production Baseline",
+    PUBLIC_BASELINE_NAME,
+    INTERNAL_DESIGN_ALIGNMENT,
+    "Taiheng",
+    "Xingtai",
+    "Baigong",
+    "docs/CAPABILITY_MATRIX.md",
+    "docs/CONFIG_CAPABILITY_MATRIX.md",
+    "docs/SOURCE_REGISTRY.md",
+    "docs/CLAIM_BOUNDARIES.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
     "npm.cmd run preflight:release",
     "npm.cmd run release:evidence",
     "npm.cmd run release:status",
@@ -432,18 +555,223 @@ if (readme) {
   ];
   const missingReadmeItems = requiredReadmeItems.filter((item) => !readme.includes(item));
   if (missingReadmeItems.length === 0) {
-    pass("readme-release-boundary", "README covers GitHub readiness and V6.5 claim boundaries");
+    pass("readme-release-boundary", `README covers public repository policy and ${PUBLIC_BASELINE_NAME} claim boundaries`);
   } else {
     fail(
       "readme-release-boundary",
       `Missing README release boundary item(s): ${missingReadmeItems.join(" / ")}`,
-      "Restore README GitHub readiness and V6.5 claim-boundary guidance before publishing.",
+      `Restore README public repository policy and ${PUBLIC_BASELINE_NAME} claim-boundary guidance before publishing.`,
+    );
+  }
+}
+
+if (license) {
+  const requiredLicenseItems = ["Apache License", "Version 2.0", "Copyright 2026"];
+  const missingLicenseItems = requiredLicenseItems.filter((item) => !license.includes(item));
+  if (missingLicenseItems.length === 0) {
+    pass("license-policy", "LICENSE declares Apache-2.0 public licensing");
+  } else {
+    fail(
+      "license-policy",
+      `Missing license item(s): ${missingLicenseItems.join(" / ")}`,
+      "Restore LICENSE before treating the repository as an open public baseline.",
+    );
+  }
+}
+
+if (securityPolicy) {
+  const requiredSecurityItems = [
+    "External delivery is disabled by default",
+    "Direct Agent execution is disabled by default",
+    "Data Source Registry does not store credentials",
+    "Do not include secrets",
+  ];
+  const missingSecurityItems = requiredSecurityItems.filter((item) => !securityPolicy.includes(item));
+  if (missingSecurityItems.length === 0) {
+    pass("security-policy", "SECURITY.md documents public baseline safety defaults and reporting boundaries");
+  } else {
+    fail(
+      "security-policy",
+      `Missing security policy item(s): ${missingSecurityItems.join(" / ")}`,
+      "Restore SECURITY.md before accepting public security reports.",
+    );
+  }
+}
+
+if (contributing) {
+  const requiredContributingItems = [
+    "Do not submit secrets",
+    "docs/CLAIM_BOUNDARIES.md",
+    "npm.cmd run preflight:static",
+  ];
+  const missingContributingItems = requiredContributingItems.filter((item) => !contributing.includes(item));
+  if (missingContributingItems.length === 0) {
+    pass("contributing-guide", "CONTRIBUTING.md keeps contribution boundaries visible");
+  } else {
+    fail(
+      "contributing-guide",
+      `Missing contributing item(s): ${missingContributingItems.join(" / ")}`,
+      "Restore CONTRIBUTING.md before inviting public contributions.",
+    );
+  }
+}
+
+if (envExample) {
+  const requiredEnvItems = [
+    "SYNAPSE_SMTP_USERNAME=",
+    "SYNAPSE_SMTP_PASSWORD=",
+    "SYNAPSE_RELAY_TOKEN=",
+  ];
+  const missingEnvItems = requiredEnvItems.filter((item) => !envExample.includes(item));
+  if (missingEnvItems.length === 0) {
+    pass("env-example", ".env.example lists empty local secret placeholders");
+  } else {
+    fail(
+      "env-example",
+      `Missing env example item(s): ${missingEnvItems.join(" / ")}`,
+      "Restore .env.example with empty placeholders only.",
+    );
+  }
+}
+
+if (versioning) {
+  const requiredVersioningItems = [
+    PUBLIC_VERSION,
+    "Initial Public Baseline",
+    INTERNAL_DESIGN_ALIGNMENT,
+    "separates public software versions from internal design document",
+  ];
+  const missingVersioningItems = requiredVersioningItems.filter((item) => !versioning.includes(item));
+  if (missingVersioningItems.length === 0) {
+    pass("versioning-policy", "Versioning policy separates public software and internal design tracks");
+  } else {
+    fail(
+      "versioning-policy",
+      `Missing versioning policy item(s): ${missingVersioningItems.join(" / ")}`,
+      "Restore VERSIONING.md before changing package, Cargo, Tauri, or release version metadata.",
+    );
+  }
+}
+
+if (capabilityMatrix) {
+  const requiredCapabilityItems = [
+    "usable",
+    "preview-only",
+    "dry-run",
+    "Taiheng",
+    "Zhishu",
+    "Xingtai",
+    "Baigong",
+    "Data source registry",
+  ];
+  const missingCapabilityItems = requiredCapabilityItems.filter((item) => !capabilityMatrix.includes(item));
+  if (missingCapabilityItems.length === 0) {
+    pass("capability-matrix", "Capability matrix covers current usable, preview, dry-run, and disabled states");
+  } else {
+    fail(
+      "capability-matrix",
+      `Missing capability matrix item(s): ${missingCapabilityItems.join(" / ")}`,
+      "Restore docs/CAPABILITY_MATRIX.md before claiming current capabilities.",
+    );
+  }
+}
+
+if (configCapabilityMatrix) {
+  const requiredConfigCapabilityItems = [
+    "active",
+    "preview",
+    "reserved",
+    "synapse.config.toml",
+    "Data source registry entries",
+  ];
+  const missingConfigCapabilityItems = requiredConfigCapabilityItems.filter(
+    (item) => !configCapabilityMatrix.includes(item),
+  );
+  if (missingConfigCapabilityItems.length === 0) {
+    pass("config-capability-matrix", "Config capability matrix labels active, preview, and reserved settings");
+  } else {
+    fail(
+      "config-capability-matrix",
+      `Missing config capability matrix item(s): ${missingConfigCapabilityItems.join(" / ")}`,
+      "Restore docs/CONFIG_CAPABILITY_MATRIX.md before expanding configuration claims.",
+    );
+  }
+}
+
+if (sourceRegistryDoc) {
+  const requiredSourceRegistryDocItems = [
+    "lightweight Baigong/Taiheng governance",
+    "not a data warehouse",
+    "No credentials are stored in the registry",
+    "background heavy polling",
+    "akshare_cn_stock",
+  ];
+  const missingSourceRegistryDocItems = requiredSourceRegistryDocItems.filter(
+    (item) => !sourceRegistryDoc.includes(item),
+  );
+  if (missingSourceRegistryDocItems.length === 0) {
+    pass("source-registry-doc", "Data Source Registry docs define lightweight governance and safety boundaries");
+  } else {
+    fail(
+      "source-registry-doc",
+      `Missing source registry doc item(s): ${missingSourceRegistryDocItems.join(" / ")}`,
+      "Restore docs/SOURCE_REGISTRY.md before enabling source registry work.",
+    );
+  }
+}
+
+if (publicBaselineStatus && claimBoundaries && architectureOverview && publicRoadmap) {
+  const requiredPublicDocItems = [
+    [publicBaselineStatus, "Synapse 0.0.0 Public Baseline Status"],
+    [publicBaselineStatus, "Not Included In This Baseline"],
+    [claimBoundaries, "Claim Boundaries"],
+    [claimBoundaries, "Do not claim unrestricted or one-click Agent execution"],
+    [architectureOverview, "Taiheng / Governance Core"],
+    [architectureOverview, "Zhishu / Intelligence Hub"],
+    [architectureOverview, "Xingtai / Action Desk"],
+    [architectureOverview, "Baigong / Arsenal"],
+    [publicRoadmap, "0.0.x"],
+    [publicRoadmap, "1.0.0"],
+  ];
+  const missingPublicDocItems = requiredPublicDocItems
+    .filter(([content, item]) => !content.includes(item))
+    .map(([, item]) => item);
+  if (missingPublicDocItems.length === 0) {
+    pass("public-doc-boundaries", "Public docs cover baseline status, claim boundaries, architecture, and roadmap");
+  } else {
+    fail(
+      "public-doc-boundaries",
+      `Missing public doc item(s): ${missingPublicDocItems.join(" / ")}`,
+      "Restore public docs before promoting the repository.",
+    );
+  }
+}
+
+if (bugReportTemplate && featureRequestTemplate && securityBoundaryTemplate && pullRequestTemplate) {
+  const requiredTemplateItems = [
+    [bugReportTemplate, "Do not include secrets"],
+    [featureRequestTemplate, "Boundary check"],
+    [securityBoundaryTemplate, "External delivery or webhook push"],
+    [securityBoundaryTemplate, "Credential or secret handling"],
+    [pullRequestTemplate, "Does not enable external delivery by default"],
+    [pullRequestTemplate, "docs/CLAIM_BOUNDARIES.md"],
+  ];
+  const missingTemplateItems = requiredTemplateItems
+    .filter(([content, item]) => !content.includes(item))
+    .map(([, item]) => item);
+  if (missingTemplateItems.length === 0) {
+    pass("github-governance-templates", "Issue and PR templates protect public contribution boundaries");
+  } else {
+    fail(
+      "github-governance-templates",
+      `Missing GitHub template item(s): ${missingTemplateItems.join(" / ")}`,
+      "Restore Issue/PR templates before enabling public collaboration.",
     );
   }
 }
 
 const requiredWorkflowItems = [
-  "V6.5 Local Baseline",
+  PUBLIC_BASELINE_NAME,
   "windows-latest",
   "npm ci",
   "npm run preflight:static",
@@ -454,8 +782,8 @@ const requiredWorkflowItems = [
   "npm run release:status -- --json",
   "npm run release:doctor -- --json",
   "actions/upload-artifact@v4",
-  "synapse-v65-release-evidence",
-  "synapse-v65-ui-smoke",
+  "synapse-000-release-evidence",
+  "synapse-000-ui-smoke",
   "continue-on-error: true",
 ];
 if (githubWorkflow) {
@@ -503,12 +831,14 @@ if (wixDiagnose) {
 if (releaseEvidence) {
   const requiredReleaseEvidenceItems = [
     "Documentation Boundary",
-    "v65-release-checklist",
+    "public-release-checklist",
     "release-distribution-notes",
     "readme-release-boundary",
-    "v65-alignment-matrix",
+    "public-capability-matrix",
     "Release Blockers",
-    "V6.5 Claim Boundary",
+    "Public Baseline Claim Boundary",
+    "release-msi-current-version",
+    "version_matches",
     "renderReleaseSummary",
     "buildReleaseReview",
     "schema_version: 1",
@@ -619,12 +949,12 @@ if (agentTeamPanel && agentTeamDomain) {
     .filter(([content, item]) => !content.includes(item))
     .map(([, item]) => item);
   if (missingAgentTeamPreviewItems.length === 0) {
-    pass("agent-team-preview-only", "Agent team remains a V6.5 blueprint preview with no process start");
+    pass("agent-team-preview-only", `Agent team remains a ${PUBLIC_BASELINE_NAME} blueprint preview with no process start`);
   } else {
     fail(
       "agent-team-preview-only",
       `Missing Agent team preview guard item(s): ${missingAgentTeamPreviewItems.join(" / ")}`,
-      "Restore Agent team preview-only guards before claiming the V6.5 local production baseline.",
+      `Restore Agent team preview-only guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -671,7 +1001,7 @@ if (notificationGateway) {
     fail(
       "feishu-wechat-preview-only",
       `Missing notification preview guard item(s): ${missingNotificationPreviewItems.join(" / ")}`,
-      "Restore Feishu/WeChat preview-only guards before claiming the V6.5 local production baseline.",
+      `Restore Feishu/WeChat preview-only guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -699,7 +1029,7 @@ if (localAppBridge && appShell) {
     fail(
       "local-app-launch-guard",
       `Missing local app guard item(s): ${missingLocalAppGuardItems.join(" / ")}`,
-      "Restore Local App Bridge launch-only guards before claiming the V6.5 local production baseline.",
+      `Restore Local App Bridge launch-only guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -728,7 +1058,7 @@ if (browserAutomation && browserReadonlyScript) {
     fail(
       "browser-readonly-guard",
       `Missing browser read-only guard item(s): ${missingBrowserGuardItems.join(" / ")}`,
-      "Restore browser read-only and allowlist guards before claiming the V6.5 local production baseline.",
+      `Restore browser read-only and allowlist guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -756,7 +1086,7 @@ if (webAppShell && webAppShellPanel) {
     fail(
       "web-app-shell-preview-guard",
       `Missing Web App Shell guard item(s): ${missingWebAppShellItems.join(" / ")}`,
-      "Restore Web App Shell preview-only boundaries before claiming V6.5 alignment.",
+      `Restore Web App Shell preview-only boundaries before claiming ${INTERNAL_DESIGN_ALIGNMENT}.`,
     );
   }
 }
@@ -785,7 +1115,7 @@ if (codebaseMemory && codebaseMemoryPanel) {
     fail(
       "codebase-memory-readonly-guard",
       `Missing Codebase Memory guard item(s): ${missingCodebaseMemoryItems.join(" / ")}`,
-      "Restore Codebase Memory read-only structural boundaries before claiming V6.5 alignment.",
+      `Restore Codebase Memory read-only structural boundaries before claiming ${INTERNAL_DESIGN_ALIGNMENT}.`,
     );
   }
 }
@@ -817,7 +1147,7 @@ if (permissionMemory && permissionMemoryPanel) {
     fail(
       "permission-memory-preview-guard",
       `Missing Permission Memory guard item(s): ${missingPermissionMemoryItems.join(" / ")}`,
-      "Restore Permission Memory candidate-only boundaries before claiming V6.5 alignment.",
+      `Restore Permission Memory candidate-only boundaries before claiming ${INTERNAL_DESIGN_ALIGNMENT}.`,
     );
   }
 }
@@ -833,6 +1163,8 @@ if (systemService) {
     "automatic L2 writes",
     "experience-reuse",
     "Matched success and avoidance records",
+    "source-registry",
+    "Baigong/Taiheng source registration metadata",
   ];
   const missingSystemCapabilityItems = requiredSystemCapabilityItems.filter(
     (item) => !systemService.includes(item),
@@ -843,7 +1175,54 @@ if (systemService) {
     fail(
       "system-capability-map-guard",
       `Missing system capability map item(s): ${missingSystemCapabilityItems.join(" / ")}`,
-      "Restore guarded runtime capability visibility before claiming the V6.5 local production baseline.",
+      `Restore guarded runtime capability visibility before claiming the ${PUBLIC_BASELINE_NAME}.`,
+    );
+  }
+}
+if (sourceRegistry && sourceRegistryPanel && appShell) {
+  const requiredSourceRegistryItems = [
+    "SourceRegistryPreview",
+    "SourceRegistryEntry",
+    "lightweight-registration-only",
+    "no-heavy-data-processing",
+    "credential-guard-required-before-auth",
+    "store-credentials-in-registry",
+    "background-heavy-polling",
+    "auto-fetch-live-data",
+    "enabled: false",
+  ];
+  const missingSourceRegistryItems = requiredSourceRegistryItems.filter(
+    (item) => !sourceRegistry.includes(item),
+  );
+  const requiredSourceRegistryPanelItems = [
+    "Data Source Registry",
+    "denied_actions",
+    "entry.enabled",
+    "entry.auth_required",
+  ];
+  const missingSourceRegistryPanelItems = requiredSourceRegistryPanelItems.filter(
+    (item) => !sourceRegistryPanel.includes(item),
+  );
+  const requiredSourceRegistryAppItems = [
+    "SourceRegistryPanel",
+    "preview_source_registry",
+    "sourceRegistryPreview",
+  ];
+  const missingSourceRegistryAppItems = requiredSourceRegistryAppItems.filter(
+    (item) => !appShell.includes(item),
+  );
+  const missingSourceRegistryAll = [
+    ...missingSourceRegistryItems,
+    ...missingSourceRegistryPanelItems,
+    ...missingSourceRegistryAppItems,
+  ];
+  if (missingSourceRegistryAll.length === 0) {
+    pass("source-registry-preview-only", "Data Source Registry remains lightweight governance preview only");
+  } else {
+    fail(
+      "source-registry-preview-only",
+      `Missing source registry guard item(s): ${missingSourceRegistryAll.join(" / ")}`,
+      `Restore Data Source Registry guardrails before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -867,7 +1246,7 @@ if (httpSource) {
     fail(
       "http-source-quarantine-guard",
       `Missing HTTP source guard item(s): ${missingHttpSourceItems.join(" / ")}`,
-      "Restore HTTP source quarantine and retrieval guards before claiming the V6.5 local production baseline.",
+      `Restore HTTP source quarantine and retrieval guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -894,7 +1273,7 @@ if (deviceSync && appShell) {
     fail(
       "device-sync-local-first-guard",
       `Missing device sync guard item(s): ${missingDeviceSyncItems.join(" / ")}`,
-      "Restore Device Sync local-first and relay dry-run guards before claiming the V6.5 local production baseline.",
+      `Restore Device Sync local-first and relay dry-run guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -926,7 +1305,7 @@ if (computerDiagnostics) {
     fail(
       "computer-diagnostics-readonly-guard",
       `Missing computer diagnostics guard item(s): ${missingDiagnosticsItems.join(" / ")}`,
-      "Restore read-only computer diagnostics guards before claiming the V6.5 local production baseline.",
+      `Restore read-only computer diagnostics guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -976,7 +1355,7 @@ if (libraryHome && appShell) {
     fail(
       "library-home-recoverability-guard",
       `Missing Library Home recoverability item(s): ${missingLibraryHomeItems.join(" / ")}`,
-      "Restore backup/recycle review and temporary recovery boundaries before claiming V6.5 alignment.",
+      `Restore backup/recycle review and temporary recovery boundaries before claiming ${INTERNAL_DESIGN_ALIGNMENT}.`,
     );
   }
 }
@@ -995,6 +1374,8 @@ if (productionReadiness) {
     "codebase-memory-readonly-structural-preview",
     "permission-memory-candidate-preview",
     "permission-memory-candidate-only-no-auto-grant",
+    "source-registry-lightweight-governance-preview",
+    "source-registry-no-credential-or-heavy-fetch",
     "backup-library-readonly-temporary-restore-first",
     "release:doctor -- --json",
   ];
@@ -1007,7 +1388,7 @@ if (productionReadiness) {
     fail(
       "production-readiness-release-evidence-guard",
       `Missing Production Readiness release evidence item(s): ${missingProductionReadinessItems.join(" / ")}`,
-      "Restore the read-only release evidence gate before claiming the V6.5 local production baseline.",
+      `Restore the read-only release evidence gate before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -1053,7 +1434,7 @@ if (storeMod && storeRepository) {
     fail(
       "store-schema-migration-guard",
       `Missing store schema/migration guard item(s): ${missingStoreMigrationItems.join(" / ")}`,
-      "Restore store schema and migration guards before claiming the V6.5 local production baseline.",
+      `Restore store schema and migration guards before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
@@ -1064,11 +1445,13 @@ if (uiSmoke) {
     "WebAppShellPanel",
     "CodebaseMemoryPanel",
     "PermissionMemoryPanel",
+    "SourceRegistryPanel",
     "Library home",
     "Production readiness",
     "Web App Shell",
     "Codebase Memory",
     "Permission Memory",
+    "Data Source Registry",
     "desktop",
     "mobile",
     "screenshotDir",
@@ -1081,54 +1464,35 @@ if (uiSmoke) {
     fail(
       "ui-smoke-production-anchors",
       `Missing UI smoke anchor item(s): ${missingUiSmokeItems.join(" / ")}`,
-      "Restore UI smoke anchors before claiming the V6.5 local production baseline.",
+      `Restore UI smoke anchors before claiming the ${PUBLIC_BASELINE_NAME}.`,
     );
   }
 }
 if (alignmentMatrix) {
   const requiredAlignmentItems = [
-    "Local-first operation",
-    "Safety Boundaries",
-    "State Integrity",
-    "Release Blockers",
-    "Push metadata only",
-    "Agent team blueprint preview",
-    "Agent Harness safety gateway",
-    "Secret-free release tree",
-    "GitHub repository hygiene",
-    "Local app launch-only bridge",
-    "Browser read-only automation",
-    "Web App Shell manual preview",
-    "Codebase Memory structural adapter",
-    "Permission Memory candidate preview",
-    "HTTP source quarantine",
-    "Device sync local-first relay preview",
-    "Computer diagnostics read-only",
-    "System Profile Reader context snapshot",
-    "Context Budget evidence preservation",
-    "Store schema migration guard",
-    "Library Home recoverability policy",
-    "UI smoke production anchors",
-    "CI evidence artifacts",
-    "Machine-readable release status",
-    "Read-only release doctor",
-    "In-app release evidence gate",
-    "GitHub-facing documentation boundary",
-    "npm.cmd run preflight:static",
-    "npm.cmd run release:evidence",
-    "npm.cmd run release:status -- --json",
-    "npm.cmd run release:doctor",
+    "Synapse 0.0.0 Capability Matrix",
+    "usable",
+    "guarded",
+    "preview-only",
+    "dry-run",
+    "disabled",
+    "Taiheng",
+    "Zhishu",
+    "Xingtai",
+    "Baigong",
+    "Data source registry",
+    "Cloud relay as source of truth",
   ];
   const missingAlignmentItems = requiredAlignmentItems.filter(
     (item) => !alignmentMatrix.includes(item),
   );
   if (missingAlignmentItems.length === 0) {
-    pass("v65-alignment-matrix", "V6.5 alignment matrix covers core evidence areas");
+    pass("public-capability-matrix", "Public capability matrix covers core evidence areas");
   } else {
     fail(
-      "v65-alignment-matrix",
-      `Missing V6.5 alignment item(s): ${missingAlignmentItems.join(" / ")}`,
-      "Restore V65_ALIGNMENT_MATRIX.md before claiming V6.5 baseline alignment.",
+      "public-capability-matrix",
+      `Missing public baseline alignment item(s): ${missingAlignmentItems.join(" / ")}`,
+      "Restore docs/CAPABILITY_MATRIX.md before claiming public baseline capabilities.",
     );
   }
 }
@@ -1139,7 +1503,7 @@ if (releaseMode) {
 }
 
 if (staticOnly) {
-  pass("static-mode", "Skipped build commands; static V6.5 gates only");
+  pass("static-mode", `Skipped build commands; static ${PUBLIC_BASELINE_NAME} gates only`);
 } else {
   run("npm.cmd", ["run", "build"], { id: "frontend-build" });
   run("cargo", ["fmt", "--check"], { cwd: "src-tauri", id: "rust-format-check" });
@@ -1182,8 +1546,8 @@ if (failed.length > 0) {
 if (!jsonOutput) {
   console.log(
     staticOnly
-      ? `\n${releaseMode ? "Release" : "Static production"} preflight passed for the V6.5 local-first baseline.`
-      : "\nProduction preflight passed for the V6.5 local-first baseline.",
+      ? `\n${releaseMode ? "Release" : "Static production"} preflight passed for the ${PUBLIC_BASELINE_NAME}.`
+      : `\nProduction preflight passed for the ${PUBLIC_BASELINE_NAME}.`,
   );
 }
 

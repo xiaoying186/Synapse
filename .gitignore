@@ -35,6 +35,24 @@ dataset/
 *.pfx
 *.p12
 
+# Internal / private planning documents
+internal/
+private/
+private_docs/
+design_private/
+*_Private.md
+*_private.md
+*内部*.md
+*完整设计文档*.md
+*设计文档V*.md
+*商业化*.md
+*变现*.md
+*待融合*.md
+*工作建议*.md
+*Codex*.md
+Synapse_Design_V*.md
+Synapse-Design-V*.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

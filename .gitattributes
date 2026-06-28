@@ -12,13 +12,19 @@
 *.yaml text eol=lf
 
 *.docx binary
+*.pdf binary
+*.pptx binary
+*.xlsx binary
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.ico binary
+*.icns binary
 *.sqlite binary
 *.sqlite3 binary
 *.db binary
 *.zip binary
+*.7z binary
+*.rar binary
 *.msi binary
 *.exe binary

@@ -47,7 +47,7 @@ fn capability_statuses(
     let agent_detail = if config.agent_execution_enabled {
         "Agent execution requires detected tools, allowlisting, Task Run approval, and Agent Harness gates."
     } else {
-        "Agent process execution is disabled by default under the V6.5 production baseline."
+        "Agent process execution is disabled by default under the Synapse 0.0.0 public baseline."
     };
 
     vec![
@@ -90,6 +90,11 @@ fn capability_statuses(
             "information-aggregation",
             "read-only",
             "Fixture, manual import, and one configured allowlisted HTTP JSON source are available behind quarantine gates.",
+        ),
+        capability(
+            "source-registry",
+            "preview-only",
+            "Baigong/Taiheng source registration metadata is visible without credentials, heavy data processing, background polling, or live fetch execution.",
         ),
         capability(
             "context-budget",

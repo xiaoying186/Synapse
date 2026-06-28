@@ -1,0 +1,39 @@
+name: Security boundary
+description: Report a possible safety, permission, or claim-boundary issue.
+title: "[Boundary]: "
+labels: ["type: security-boundary", "status: needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for boundary concerns that are not active vulnerabilities. For sensitive vulnerabilities, use private security reporting if available. Do not post secrets.
+  - type: textarea
+    id: concern
+    attributes:
+      label: Boundary concern
+      description: What might cross a safety, permission, or public-claim boundary?
+    validations:
+      required: true
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: Affected boundary
+      options:
+        - label: External delivery or webhook push
+        - label: Real Agent process execution
+        - label: Browser write automation
+        - label: Local file write/delete or system mutation
+        - label: Automatic durable L2 memory admission
+        - label: Cloud sync as source of truth
+        - label: Credential or secret handling
+        - label: Public documentation claim
+  - type: textarea
+    id: expected_gate
+    attributes:
+      label: Expected gate
+      description: What review, permission, or preview gate should apply?
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Include file names, screenshots, or logs with secrets removed.

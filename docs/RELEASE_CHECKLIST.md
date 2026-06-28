@@ -1,4 +1,6 @@
-# Synapse V6.5 Local Production Release Checklist
+# Synapse 0.0.0 Public Baseline Release Checklist
+
+Internal design alignment: `Synapse Design V6.6`
 
 Use this checklist before treating a local build or GitHub snapshot as ready for
 guarded production use.
@@ -6,8 +8,11 @@ guarded production use.
 ## Static Gates
 
 - `npm.cmd run preflight:static` passes.
-- `V65_ALIGNMENT_MATRIX.md` maps V6.5 requirements to concrete evidence and
-  remains protected by preflight.
+- `VERSIONING.md` separates the public software version from internal Design
+  V6.6 iteration documents.
+- `docs/CAPABILITY_MATRIX.md`, `docs/CONFIG_CAPABILITY_MATRIX.md`,
+  `docs/CLAIM_BOUNDARIES.md`, and
+  `docs/SOURCE_REGISTRY.md` are present and protected by preflight.
 - `package-lock.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock`
   are present so CI can reproduce npm and Rust dependency resolution.
 - `@tauri-apps/api`, `tauri`, and `tauri-build` remain on the documented
@@ -31,8 +36,8 @@ guarded production use.
   packaging.
 - `npm.cmd run tauri -- build --debug` can produce a debug MSI.
 - Release MSI builds are verified separately before distribution.
-- Signing, hash, and distribution notes in `RELEASE_DISTRIBUTION_NOTES.md` are
-  followed before sharing an MSI outside private local testing.
+- Signing, hash, and distribution notes in `docs/RELEASE_DISTRIBUTION_NOTES.md`
+  are followed before sharing an MSI outside private local testing.
 - `npm.cmd run release:evidence` produces local JSON/Markdown release evidence;
   a non-zero exit means release blockers are still present.
 - `.tmp/release-evidence/release-evidence.json` includes a top-level
@@ -54,7 +59,7 @@ guarded production use.
 - Release review confirms any debug MSI under `src-tauri/target/debug/` is only
   a packaging rehearsal and is not distributed as the formal release artifact.
 - Release evidence includes the documentation-boundary summary for the release
-  checklist, distribution notes, README, and V6.5 alignment matrix.
+  checklist, distribution notes, README, and public-baseline capability matrix.
 
 ## Runtime Gates
 
@@ -69,8 +74,9 @@ guarded production use.
 - `npm.cmd run preflight:release` passes.
 - `npm.cmd run preflight:release:json` has no failed checks if you need
   machine-readable release diagnostics.
-- The `V6.5 Local Baseline` GitHub Actions workflow passes after the repository
-  is published. It verifies local baseline gates, not MSI signing or packaging.
+- The `Synapse 0.0.0 Public Baseline` GitHub Actions workflow passes after the
+  repository is published with a token that can update workflows. It verifies
+  local baseline gates, not MSI signing or packaging.
 - `npm.cmd run git:diagnose` reports a valid repository, or you intentionally
   initialize a fresh repository after removing an empty `.git` directory.
 - If `.git` is empty and no history must be preserved, use
@@ -81,11 +87,13 @@ guarded production use.
   and logs are not committed.
 - No SMTP credentials, webhook URLs, `.env` files, or local user data are
   committed.
-- Include the V6.5 design document only if it is intended to be public.
+- Do not include internal design documents, monetization plans, private
+  roadmaps, local paths, personal workflows, or unpublished module strategies
+  in the public repository.
 - GitHub release notes describe this as a guarded local-first baseline and avoid
-  claiming V6.5 non-goals as shipped features.
+  claiming internal-design non-goals as shipped features.
 
-## V6.5 Non-Goals For This Baseline
+## Non-Goals For This Baseline
 
 - No direct CLI Agent execution.
 - No one-click real Agent team execution.

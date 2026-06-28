@@ -79,7 +79,7 @@ fn preview_from_with_release_checks(
                 "info"
             },
             if runtime.external_delivery_enabled {
-                "External delivery is enabled; V6.5 local-first production requires explicit channel and Task Run review.".to_string()
+                "External delivery is enabled; Synapse 0.0.0 requires explicit channel and Task Run review.".to_string()
             } else {
                 "External delivery is disabled by default; Feishu and WeChat remain preview-only."
                     .to_string()
@@ -99,7 +99,7 @@ fn preview_from_with_release_checks(
                 "info"
             },
             if runtime.agent_execution_enabled {
-                "Direct Agent process execution is enabled, which is outside the current V6.5 production baseline.".to_string()
+                "Direct Agent process execution is enabled, which is outside the current Synapse 0.0.0 public baseline.".to_string()
             } else {
                 "Agent process execution is disabled; team and harness flows remain preview/guarded.".to_string()
             },
@@ -117,7 +117,23 @@ fn preview_from_with_release_checks(
             "Feishu/WeChat adapters",
             "pass",
             "info",
-            "Feishu and WeChat notification adapters are preview-only in the V6.5 baseline; delivery is not started."
+            "Feishu and WeChat notification adapters are preview-only in the Synapse 0.0.0 baseline; delivery is not started."
+                .to_string(),
+        ),
+        check(
+            "source-registry-lightweight-governance-preview",
+            "Data source registry",
+            "pass",
+            "info",
+            "Data Source Registry is limited to Baigong/Taiheng lightweight governance metadata; no credentials, heavy data processing, background polling, or live source fetch is performed."
+                .to_string(),
+        ),
+        check(
+            "source-registry-no-credential-or-heavy-fetch",
+            "Source registry safety",
+            "pass",
+            "info",
+            "Registered source examples are disabled by default and require Taiheng review plus future Credential Guard before authenticated or external use."
                 .to_string(),
         ),
         check(
@@ -291,7 +307,9 @@ fn preview_from_with_release_checks(
 
     let state = readiness_state(&checks).to_string();
     let summary = match state.as_str() {
-        "blocked" => "Production baseline is blocked until critical V6.5 gates are resolved.",
+        "blocked" => {
+            "Production baseline is blocked until critical Synapse 0.0.0 gates are resolved."
+        }
         "local-review-required" => "Production baseline is close, but local review gates remain.",
         _ => "Production baseline is ready for local-first guarded use.",
     }
@@ -312,6 +330,8 @@ fn preview_from_with_release_checks(
             "codebase-memory-readonly-structural-preview".to_string(),
             "permission-memory-candidate-only-no-auto-grant".to_string(),
             "http-source-json-only-quarantine".to_string(),
+            "source-registry-lightweight-governance-preview".to_string(),
+            "source-registry-no-credential-or-heavy-fetch".to_string(),
             "device-sync-local-package-relay-preview".to_string(),
             "computer-diagnostics-readonly".to_string(),
             "backup-library-readonly-temporary-restore-first".to_string(),
@@ -489,6 +509,7 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "src-tauri/src/domains/web_app_shell.rs",
         "src-tauri/src/domains/codebase_memory.rs",
         "src-tauri/src/domains/permission_memory.rs",
+        "src-tauri/src/domains/source_registry.rs",
         "src-tauri/src/domains/production_readiness.rs",
         "src-tauri/src/services/system.rs",
         "src/components/ContextBudgetPanel.tsx",
@@ -497,13 +518,27 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "src/components/WebAppShellPanel.tsx",
         "src/components/CodebaseMemoryPanel.tsx",
         "src/components/PermissionMemoryPanel.tsx",
+        "src/components/SourceRegistryPanel.tsx",
         "synapse.config.toml",
         "README.md",
-        "PRODUCTION_RELEASE_CHECKLIST.md",
-        "RELEASE_DISTRIBUTION_NOTES.md",
-        "PRODUCTION_READINESS_STATUS.md",
-        "V65_ALIGNMENT_MATRIX.md",
+        "LICENSE",
+        "SECURITY.md",
+        "VERSIONING.md",
+        "CONTRIBUTING.md",
+        "docs/ARCHITECTURE_OVERVIEW.md",
+        "docs/CAPABILITY_MATRIX.md",
+        "docs/CONFIG_CAPABILITY_MATRIX.md",
+        "docs/CLAIM_BOUNDARIES.md",
+        "docs/PUBLIC_BASELINE_STATUS.md",
+        "docs/PUBLIC_ROADMAP.md",
+        "docs/RELEASE_CHECKLIST.md",
+        "docs/RELEASE_DISTRIBUTION_NOTES.md",
+        "docs/SOURCE_REGISTRY.md",
         ".github/workflows/v65-local-baseline.yml",
+        ".github/ISSUE_TEMPLATE/bug_report.yml",
+        ".github/ISSUE_TEMPLATE/feature_request.yml",
+        ".github/ISSUE_TEMPLATE/security_boundary.yml",
+        ".github/pull_request_template.md",
         "scripts/production-preflight.mjs",
         "scripts/release-evidence.mjs",
         "scripts/release-status.mjs",
@@ -754,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn passes_local_when_v65_gates_are_clean() {
+    fn passes_local_when_public_baseline_gates_are_clean() {
         let preview =
             preview_from_with_release_checks(runtime(), library(0, 1, 0), clean_release_checks());
 

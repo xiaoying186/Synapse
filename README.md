@@ -1,13 +1,29 @@
 # Synapse
 
-Synapse is a Tauri + React desktop prototype for a dual-mode personal
-cognitive kernel. It is evolving around three product surfaces:
+Current public version: `0.0.0`
+Public stage: `Initial Public Baseline`
+Internal design alignment: `Synapse Design V6.6`
 
-- Zhishu / Intelligence Hub: knowledge, memory, reusable skills, and admission rules
-- Task Center: user-defined directions, opportunity mining, scheduled outputs,
-  and Zhishu self-growth
-- Arsenal: extension tools, local automation, agents, browser automation, and
-  built-in utility modules
+Synapse is a Tauri + React desktop prototype for a local-first personal
+cognitive kernel. Public software versions are intentionally separated from
+internal design document versions: `0.0.0` is the public baseline version, while
+`Synapse Design V6.6` is the internal architecture alignment target.
+
+Synapse is organized around one governing core and three product centers:
+
+- Taiheng / Governance Core: mode, permission, safety, recovery, release gates,
+  audit, and cross-domain coordination
+- Zhishu / Intelligence Hub: knowledge, memory, reusable skills, admission
+  rules, experience, and project/user self-image material
+- Xingtai / Action Desk: task directions, opportunity mining, scheduled output,
+  execution previews, project progress, and Zhishu self-growth entry points
+- Baigong / Arsenal: tools, agents, local automation, browser automation, data
+  source registry, information aggregation, and module registry
+
+Compatibility note: some code paths and local data files still use legacy
+internal names such as `task_center`, Task Center, `arsenal`, and Arsenal. New
+product-facing documentation should treat them as compatibility labels under
+Xingtai and Baigong rather than as the primary structure.
 
 The current build is intentionally conservative. It previews planning,
 permission, memory, task, information, and tool-registry behavior without
@@ -213,7 +229,7 @@ Build the frontend:
 npm.cmd run build
 ```
 
-Run the V6.5 local-first production preflight:
+Run the Synapse 0.0.0 public baseline production preflight:
 
 ```powershell
 npm.cmd run preflight
@@ -230,8 +246,8 @@ When you only need a fast static guard check without running build commands:
 npm.cmd run preflight:static
 ```
 
-Before publishing to GitHub, run the release gate. It includes the static V6.5
-checks plus a non-destructive Git repository shape check:
+Before publishing to GitHub, run the release gate. It includes the static
+public-baseline checks plus a non-destructive Git repository shape check:
 
 ```powershell
 npm.cmd run preflight:release
@@ -243,9 +259,9 @@ For machine-readable release diagnostics:
 npm.cmd run preflight:release:json
 ```
 
-After publishing to GitHub, the `V6.5 Local Baseline` workflow runs the guarded
-local baseline checks on Windows. It intentionally does not package, sign, or
-publish an MSI.
+After publishing to GitHub with a token that can update workflows, the
+`Synapse 0.0.0 Public Baseline` workflow runs the guarded local baseline checks
+on Windows. It intentionally does not package, sign, or publish an MSI.
 
 To generate local release evidence under `.tmp/release-evidence/`:
 
@@ -296,8 +312,8 @@ cargo test
 
 ## Local Production Baseline
 
-The V6.5 baseline is local-first and guarded. Before treating a local build as
-production-ready, keep these invariants true:
+The Synapse 0.0.0 public baseline is local-first and guarded. Before treating a
+local build as production-ready, keep these invariants true:
 
 - `external_delivery_enabled = false`
 - `agent_execution_enabled = false`
@@ -323,12 +339,16 @@ Production Readiness also reads the current release evidence and reports
 missing, stale, blocked, or ready evidence without generating files or changing
 Git/WiX state.
 
-See `PRODUCTION_READINESS_STATUS.md` for the current verified state and remaining
-production hardening items.
-See `V65_ALIGNMENT_MATRIX.md` for the requirement-to-evidence mapping used to
-review the guarded V6.5 baseline.
-See `RELEASE_DISTRIBUTION_NOTES.md` before signing, hashing, or sharing an MSI
-outside private local testing.
+See `VERSIONING.md` for the public software version and internal design version
+policy.
+See `docs/CAPABILITY_MATRIX.md` for the truthful current capability status.
+See `docs/CONFIG_CAPABILITY_MATRIX.md` for which `synapse.config.toml` fields are
+active, preview, or reserved.
+See `docs/SOURCE_REGISTRY.md` for the lightweight data source registry boundary.
+See `docs/PUBLIC_BASELINE_STATUS.md` for the current public baseline status.
+See `docs/CLAIM_BOUNDARIES.md` before changing public capability claims.
+See `docs/RELEASE_DISTRIBUTION_NOTES.md` before signing, hashing, or sharing an
+MSI outside private local testing.
 
 ## Do Not Claim In This Baseline
 
@@ -338,44 +358,28 @@ automatic Feishu or WeChat delivery, browser write automation, automatic system
 cleanup, automatic L2 memory writes, or cloud synchronization as a source of
 truth.
 
-## GitHub Readiness
+## Public Repository Policy
 
-Before publishing the repository:
+This repository is public, but Synapse is still an early public baseline:
 
-- keep local-only data, logs, build outputs, and secrets out of Git
-- keep `.gitattributes` so Windows and GitHub Actions normalize text files while
-  treating design docs, screenshots, and installers as binary artifacts
-- run `npm.cmd run git:diagnose`
-- run `npm.cmd run preflight:release`
-- confirm WiX is installed or pre-cached before producing the MSI bundle
-- run `npm.cmd run preflight`
-- run `npm.cmd run preflight:static` first if the full build environment is not
-  currently available
-- after GitHub Actions runs, review the `synapse-v65-release-evidence` and
-  `synapse-v65-ui-smoke` artifacts before making release or production claims
-- if `git status` reports that the directory is not a repository, remove or
-  repair any incomplete `.git` directory before running `git init`
-- confirm `git status --short` only lists intentional source and documentation
-  changes
-- do not commit populated webhook URLs, SMTP credentials, `.env` files, or local
-  runtime data
-- do not commit `.codegraph/`, `.synapse/`, `dist/`, `target/`, or generated MSI
-  bundles
-- include the V6.5 document and implementation notes only if they are meant to
-  be public
+- Issues are welcome for bugs, public feature requests, and security-boundary
+  questions.
+- Pull requests should stay small and pass the boundary checklist in
+  `.github/pull_request_template.md`.
+- Contribution expectations are documented in `CONTRIBUTING.md`.
+- Do not submit secrets, webhook URLs, SMTP credentials, private workflows,
+  generated local data, internal design documents, monetization plans, or local
+  path notes.
+- Security-sensitive reports should follow `SECURITY.md`.
+- Public capability claims should match `docs/CLAIM_BOUNDARIES.md` and
+  `docs/CAPABILITY_MATRIX.md`.
 
-If `npm.cmd run git:diagnose` reports an empty `.git` directory and you do not
-need prior history, preview the guarded bootstrap action:
+Before a release or public claim, run:
 
 ```powershell
-npm.cmd run git:bootstrap
-```
-
-Then explicitly repair the empty `.git` directory and initialize Git:
-
-```powershell
-npm.cmd run git:bootstrap -- --repair-empty-git --yes
-git status --short
+npm.cmd run preflight:static
+npm.cmd run preflight:release
+npm.cmd run release:evidence
 ```
 
 ## Project Layout
@@ -390,6 +394,7 @@ src-tauri/
   src/aggregation/     offline information aggregation preview
   src/arsenal/         extension tool registry preview
   src/config/          runtime config loading and diagnostics
+  src/domains/         Taiheng/Zhishu/Xingtai/Baigong preview domains
   src/kernel/          Plan IR and materialized Plan model
   src/rules/           hard constraint and route injection
   src/policy.rs        permission tier preview and dry-run gates
@@ -550,6 +555,8 @@ Implemented and available:
 - persistent source observation history and source filtering
 - local source health report across observation history with source reliability,
   query cross-check readiness, and conflict-review states
+- lightweight Baigong/Taiheng data source registry preview with no credentials,
+  no heavy data processing, and no live fetch execution
 - bounded manual JSON/CSV source observation import without file-path access
 - one configured allowlisted read-only HTTP JSON source
 - retrieval contract dry-run preview
@@ -606,18 +613,18 @@ Verified locally:
 - `cargo check --offline`
 - `cargo test store --offline --quiet`
 - `cargo test domains::production_readiness --offline --quiet`
-- `npm.cmd run release:evidence` writes JSON/Markdown evidence while returning
-  non-zero until the release-machine blockers are resolved
+- `npm.cmd run release:evidence` writes JSON/Markdown evidence and blocks
+  release claims when evidence is stale or release-machine blockers are present
 
 Near-term next steps:
 
-1. Resolve release-machine blockers: valid Git metadata, WiX packaging tooling,
-   and optional signing certificate/timestamp configuration.
+1. Keep public software version `0.0.0` separate from internal Design V6.6
+   iteration notes.
 2. Run `npm.cmd run preflight:release` until it passes before publishing to
    GitHub.
 3. Produce and verify a release MSI on the target release machine after WiX is
    installed or pre-cached.
 4. Keep future real Feishu/WeChat push, direct Agent execution, browser write
-   automation, and cloud relay work behind separate V6.5+ guardrail reviews.
+   automation, and cloud relay work behind separate guardrail reviews.
 5. Add explicit migrations when schema v2 or another changed store schema is
    introduced.

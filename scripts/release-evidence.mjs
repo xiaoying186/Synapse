@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outputDir = path.join(root, ".tmp", "release-evidence");
+const PUBLIC_VERSION = "0.0.0";
+const INTERNAL_DESIGN_VERSION = "V6.6";
+const PUBLIC_BASELINE_NAME = `Synapse ${PUBLIC_VERSION} Public Baseline`;
+const INTERNAL_DESIGN_ALIGNMENT = `Synapse Design ${INTERNAL_DESIGN_VERSION}`;
 
 async function main() {
   await mkdir(outputDir, { recursive: true });
@@ -17,7 +21,7 @@ async function main() {
   const staticPreflight = runPreflight(["--static", "--json"]);
   const gitBootstrap = runDiagnostic("git-bootstrap", ["scripts/git-bootstrap.mjs"]);
   const wixDiagnose = runDiagnostic("wix-diagnose", ["scripts/wix-diagnose.mjs"]);
-  const msiArtifacts = await findMsiArtifacts();
+  const msiArtifacts = await findMsiArtifacts(packageJson.version);
   const uiSmokeArtifacts = await findUiSmokeArtifacts();
   const generatedAt = new Date().toISOString();
   const releaseReview = buildReleaseReview(releasePreflight, msiArtifacts);
@@ -31,11 +35,11 @@ async function main() {
       tauri_identifier: tauriConfig.identifier,
       bundle_targets: tauriConfig.bundle?.targets ?? [],
     },
-    v65_baseline: {
+    public_baseline: {
       external_delivery_default: "disabled",
       agent_execution_default: "disabled",
       relay_upload_default: "disabled",
-      claim_boundary: "guarded local-first baseline",
+      claim_boundary: `${PUBLIC_BASELINE_NAME} aligned with ${INTERNAL_DESIGN_ALIGNMENT}`,
     },
     preflight: {
       static: staticPreflight,
@@ -75,8 +79,18 @@ function buildReleaseReview(releasePreflight, msiArtifacts) {
       detail: check.detail,
       remediation: check.remediation ?? null,
     }));
-  const releaseArtifacts = msiArtifacts.filter((artifact) => artifact.profile === "release");
+  const releaseArtifacts = msiArtifacts.filter(
+    (artifact) => artifact.profile === "release" && artifact.version_matches,
+  );
   const debugArtifacts = msiArtifacts.filter((artifact) => artifact.profile === "debug");
+  if (!releaseArtifacts.some((artifact) => artifact.distributable)) {
+    blockers.push({
+      id: "release-msi-current-version",
+      detail: "No distributable release MSI matching the current public version was found.",
+      remediation:
+        "Build the release MSI after version changes, then rerun npm.cmd run release:evidence.",
+    });
+  }
   return {
     state: blockers.length === 0 ? "ready-for-release-review" : "blocked-before-release",
     ready: blockers.length === 0,
@@ -139,7 +153,7 @@ function runDiagnostic(id, args) {
   };
 }
 
-async function findMsiArtifacts() {
+async function findMsiArtifacts(expectedVersion) {
   const roots = [
     {
       profile: "release",
@@ -164,10 +178,12 @@ async function findMsiArtifacts() {
       const absolutePath = path.join(directory, file);
       const metadata = await stat(absolutePath);
       const buffer = await readFile(absolutePath);
+      const versionMatches = file.includes(`_${expectedVersion}_`);
       artifacts.push({
         path: path.relative(root, absolutePath).replaceAll("\\", "/"),
         profile,
-        distributable,
+        version_matches: versionMatches,
+        distributable: distributable && versionMatches,
         bytes: metadata.size,
         sha256: createHash("sha256").update(buffer).digest("hex"),
       });
@@ -205,8 +221,14 @@ function renderMarkdown(evidence) {
     evidence.artifacts.msi.length === 0
       ? ["- No MSI artifacts were found under `src-tauri/target/**/bundle/msi/`."]
       : evidence.artifacts.msi.map(
-          (artifact) =>
-            `- \`${artifact.path}\` (${artifact.profile}, ${artifact.distributable ? "distributable candidate" : "debug-only rehearsal artifact"}, ${artifact.bytes} bytes), SHA-256: \`${artifact.sha256}\``,
+          (artifact) => {
+            const artifactState = artifact.distributable
+              ? "distributable candidate"
+              : artifact.version_matches
+                ? "debug-only rehearsal artifact"
+                : "version-mismatch artifact";
+            return `- \`${artifact.path}\` (${artifact.profile}, ${artifactState}, ${artifact.bytes} bytes), SHA-256: \`${artifact.sha256}\``;
+          },
         );
   const screenshotLines =
     evidence.artifacts.ui_smoke.length === 0
@@ -215,10 +237,10 @@ function renderMarkdown(evidence) {
           (artifact) => `- \`${artifact.path}\` (${artifact.bytes} bytes), SHA-256: \`${artifact.sha256}\``,
         );
   const documentationChecks = [
-    "v65-release-checklist",
+    "public-release-checklist",
     "release-distribution-notes",
     "readme-release-boundary",
-    "v65-alignment-matrix",
+    "public-capability-matrix",
   ]
     .map((id) => evidence.preflight.static.checks.find((check) => check.id === id))
     .filter(Boolean);
@@ -237,7 +259,7 @@ Schema version: ${evidence.schema_version}
 - Version: ${evidence.project.version}
 - Tauri identifier: ${evidence.project.tauri_identifier}
 - Bundle targets: ${evidence.project.bundle_targets.join(", ") || "none"}
-- Baseline: ${evidence.v65_baseline.claim_boundary}
+- Baseline: ${evidence.public_baseline.claim_boundary}
 
 ## Preflight
 
@@ -284,18 +306,20 @@ ${artifactLines.join("\n")}
 
 ${screenshotLines.join("\n")}
 
-## V6.5 Claim Boundary
+## Public Baseline Claim Boundary
 
-- External delivery default: ${evidence.v65_baseline.external_delivery_default}
-- Agent execution default: ${evidence.v65_baseline.agent_execution_default}
-- Relay upload default: ${evidence.v65_baseline.relay_upload_default}
+- External delivery default: ${evidence.public_baseline.external_delivery_default}
+- Agent execution default: ${evidence.public_baseline.agent_execution_default}
+- Relay upload default: ${evidence.public_baseline.relay_upload_default}
 - Do not claim unrestricted automation, real Agent teams, automatic Feishu/WeChat delivery, browser write automation, automatic cleanup, or automatic L2 writes for this baseline.
 `;
 }
 
 function renderReleaseSummary(evidence) {
   const releaseFailures = evidence.release_review.blockers;
-  const releaseMsiArtifacts = evidence.artifacts.msi.filter((artifact) => artifact.profile === "release");
+  const releaseMsiArtifacts = evidence.artifacts.msi.filter(
+    (artifact) => artifact.profile === "release" && artifact.version_matches,
+  );
   const debugMsiArtifacts = evidence.artifacts.msi.filter((artifact) => artifact.profile === "debug");
   const blockerLines =
     releaseFailures.length === 0
@@ -317,7 +341,7 @@ function renderReleaseSummary(evidence) {
       ? "- No debug MSI rehearsal artifact is present."
       : `- Debug MSI rehearsal artifact(s): ${debugMsiArtifacts.map((artifact) => `\`${artifact.path}\``).join(", ")}. Do not distribute these as a formal release.`,
   ];
-  return `# Synapse V6.5 Release Review Summary
+  return `# ${PUBLIC_BASELINE_NAME} Release Review Summary
 
 Generated: ${evidence.generated_at}
 Schema version: ${evidence.schema_version}
@@ -327,7 +351,7 @@ Schema version: ${evidence.schema_version}
 - ${evidence.release_review.state}
 - Static preflight: ${evidence.preflight.static.state}
 - Release preflight: ${evidence.preflight.release.state}
-- Baseline: ${evidence.v65_baseline.claim_boundary}
+- Baseline: ${evidence.public_baseline.claim_boundary}
 
 ## Current Release Blockers
 
@@ -339,8 +363,9 @@ ${artifactLines.join("\n")}
 
 ## Safe Public Claim
 
-Synapse is a guarded local-first V6.5 baseline with external delivery, direct
-Agent execution, and relay upload disabled by default. The current evidence
+Synapse ${PUBLIC_VERSION} is a guarded local-first public baseline aligned with
+internal ${INTERNAL_DESIGN_ALIGNMENT}. External delivery, direct Agent
+execution, and relay upload are disabled by default. The current evidence
 supports local guarded review, preview-only Agent teams, preview-only
 Feishu/WeChat adapters, read-only browser automation, local package device sync,
 and explicit review before risky local changes.

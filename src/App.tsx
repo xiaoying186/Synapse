@@ -32,11 +32,13 @@ import { ProductionReadinessPanel } from "./components/ProductionReadinessPanel"
 import { SchedulerStatusPanel } from "./components/SchedulerStatusPanel";
 import { SecurityCenterPanel } from "./components/SecurityCenterPanel";
 import { SagaRecoveryPanel } from "./components/SagaRecoveryPanel";
+import { SourceRegistryPanel } from "./components/SourceRegistryPanel";
 import { SynthesisPanel } from "./components/SynthesisPanel";
 import { TaskRunPanel } from "./components/TaskRunPanel";
 import { TracePanel } from "./components/TracePanel";
 import { ZhishuCapturePanel } from "./components/ZhishuCapturePanel";
 import { ZhishuSearchPanel } from "./components/ZhishuSearchPanel";
+import { useActivityLog } from "./app/useActivityLog";
 import type {
   AdapterExecutionReceipt,
   AgentDryRunReceipt,
@@ -93,6 +95,7 @@ import type {
   SnapshotRecord,
   SourceHealthReport,
   SourceObservationRecord,
+  SourceRegistryPreview,
   SourceImportReceipt,
   SystemStatus,
   TaskCandidate,
@@ -153,6 +156,8 @@ function App() {
   const [quantResearchReport, setQuantResearchReport] = useState<QuantResearchReport | null>(null);
   const [sourceObservationHistory, setSourceObservationHistory] = useState<SourceObservationRecord[]>([]);
   const [sourceHealthReport, setSourceHealthReport] = useState<SourceHealthReport | null>(null);
+  const [sourceRegistryPreview, setSourceRegistryPreview] =
+    useState<SourceRegistryPreview | null>(null);
   const [sourceImportFormat, setSourceImportFormat] = useState("json");
   const [sourceImportContent, setSourceImportContent] = useState("");
   const [sourceImportReceipt, setSourceImportReceipt] = useState<SourceImportReceipt | null>(null);
@@ -258,6 +263,7 @@ function App() {
   const [isImportingSources, setIsImportingSources] = useState(false);
   const [isFetchingHttpSource, setIsFetchingHttpSource] = useState(false);
   const [isLoadingSourceHealth, setIsLoadingSourceHealth] = useState(false);
+  const [isLoadingSourceRegistry, setIsLoadingSourceRegistry] = useState(false);
   const [updatingToolId, setUpdatingToolId] = useState<string | null>(null);
   const [isLoadingSynthesis, setIsLoadingSynthesis] = useState(false);
   const [isTickingScheduler, setIsTickingScheduler] = useState(false);
@@ -278,7 +284,7 @@ function App() {
   const [executingRunId, setExecutingRunId] = useState<string | null>(null);
   const [promotingSynthesisCandidateId, setPromotingSynthesisCandidateId] = useState<string | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
-  const [activity, setActivity] = useState("Waiting for an intent or question.");
+  const { activity, setActivity } = useActivityLog("Waiting for an intent or question.");
 
   useEffect(() => {
     invoke<SystemStatus>("get_system_status")
@@ -305,6 +311,7 @@ function App() {
     loadDeviceSyncState();
     loadSourceObservationHistory();
     loadSourceHealthReport();
+    loadSourceRegistryPreview();
     loadSynthesisPreview();
     loadLibraryHomePreview();
     loadProductionReadinessPreview();
@@ -1168,6 +1175,21 @@ function App() {
       return null;
     } finally {
       setIsLoadingArsenal(false);
+    }
+  }
+
+  async function loadSourceRegistryPreview() {
+    setIsLoadingSourceRegistry(true);
+
+    try {
+      const preview = await invoke<SourceRegistryPreview>("preview_source_registry");
+      setSourceRegistryPreview(preview);
+      return preview;
+    } catch {
+      setSourceRegistryPreview(null);
+      return null;
+    } finally {
+      setIsLoadingSourceRegistry(false);
     }
   }
 
@@ -2194,6 +2216,12 @@ function App() {
           query={aggregationQuery}
           sourceObservationHistory={sourceObservationHistory}
           updatingToolId={updatingToolId}
+        />
+
+        <SourceRegistryPanel
+          isRefreshing={isLoadingSourceRegistry}
+          onRefresh={loadSourceRegistryPreview}
+          preview={sourceRegistryPreview}
         />
 
         <AgentHarnessPanel

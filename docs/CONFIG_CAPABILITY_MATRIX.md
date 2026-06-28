@@ -1,0 +1,24 @@
+# Synapse Config Capability Matrix
+
+This matrix records which `synapse.config.toml` areas are active in Synapse
+`0.0.0`, which are preview-only, and which are reserved for later work.
+
+| Config area | Status | Effective today | Boundary |
+| --- | --- | --- | --- |
+| `[app]` | active | yes | App name, instance identity, and local mode metadata |
+| `[mode]` | active | yes | Runtime mode, execution level, failure strategy, and step limits |
+| `[safety] external_delivery_enabled` | active | yes | Release gates require it off by default |
+| `[safety] agent_execution_enabled` | active | yes | Controls Agent Harness/teams capability state |
+| `[storage]` | active | partial | Local paths and schema envelopes are used by store modules |
+| `[scheduler]` | active | yes | Manual/background lease and safety status; background execution remains gated |
+| `[aggregation]` | active | partial | Fixture/manual/configured HTTP JSON source behind quarantine |
+| `[browser]` | preview | partial | Read-only allowlist and inspection settings only |
+| `[notifications.email]` | guarded | partial | SMTP delivery requires config, env credentials, and approval gates |
+| `[notifications.feishu]` | preview | no delivery | Webhook URL must remain empty for the baseline release gate |
+| `[notifications.wechat]` | preview | no delivery | Webhook URL must remain empty for the baseline release gate |
+| `[sync]` | guarded-local | partial | Local export/import packages; relay upload is dry-run only |
+| `[sandbox]` | active | yes | Used by policy/status display and guardrail checks |
+| Data source registry entries | preview | no live fetch | Registry is a governance layer; adapters own real retrieval later |
+
+When adding a config field, update this matrix and the production preflight if
+the field affects release safety.

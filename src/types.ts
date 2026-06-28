@@ -703,6 +703,33 @@ export type RetrievalContract = {
   gates: string[];
 };
 
+export type SourceRegistryEntry = {
+  source_id: string;
+  name: string;
+  type: string;
+  scope: string;
+  owner_module: string;
+  enabled: boolean;
+  auth_required: boolean;
+  network_profile: string;
+  rate_limit: string;
+  storage_policy: string;
+  shared_config_allowed: boolean;
+  status: string;
+  health_check_policy: string;
+  credential_policy: string;
+  risk_level: string;
+};
+
+export type SourceRegistryPreview = {
+  generated_at_ms: number;
+  state: string;
+  registry_scope: string;
+  entries: SourceRegistryEntry[];
+  gates: string[];
+  denied_actions: string[];
+};
+
 export type ArsenalPreview = {
   registry_state: string;
   allowed_tools: number;

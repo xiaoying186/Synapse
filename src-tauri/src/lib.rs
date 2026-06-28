@@ -1,4 +1,4 @@
-//! Synapse v5.0 kernel module root.
+//! Synapse local-first public baseline kernel module root.
 
 use serde::Serialize;
 use serde_json::json;
@@ -104,6 +104,11 @@ fn preview_production_readiness(
 fn preview_saga_recovery() -> Result<domains::saga_recovery::SagaRecoveryPreview, String> {
     domains::saga_recovery::preview()
         .map_err(|error| format!("Saga recovery preview failed: {error}"))
+}
+
+#[tauri::command]
+fn preview_source_registry() -> domains::source_registry::SourceRegistryPreview {
+    domains::source_registry::preview()
 }
 
 #[tauri::command]
@@ -1298,6 +1303,7 @@ pub fn run() {
             preview_library_home,
             preview_production_readiness,
             preview_saga_recovery,
+            preview_source_registry,
             record_saga_recovery_review,
             get_source_observation_history,
             get_source_health_report,

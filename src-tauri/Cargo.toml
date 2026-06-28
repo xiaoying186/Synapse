@@ -1,7 +1,7 @@
 [package]
 name = "synapse"
-version = "0.1.0"
-description = "Synapse v5.0 - Unified Dual-Mode Cognitive OS Kernel"
+version = "0.0.0"
+description = "Synapse 0.0.0 - Local-first public baseline aligned with internal Design V6.6"
 authors = ["Synapse"]
 edition = "2021"
 

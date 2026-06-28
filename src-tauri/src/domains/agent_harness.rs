@@ -614,7 +614,7 @@ mod tests {
     }
 
     #[test]
-    fn agent_gates_include_v65_harness_safety_boundaries() {
+    fn agent_gates_include_public_baseline_harness_safety_boundaries() {
         let receipt = receipt();
         let gates = vec![
             "workspace-boundary",

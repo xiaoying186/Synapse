@@ -16,7 +16,7 @@ export function ProductionReadinessPanel({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Production readiness</p>
-          <h3>V6.5 local-first gate check</h3>
+          <h3>0.0.0 local-first gate check</h3>
         </div>
         <button type="button" onClick={onRefresh} disabled={isRefreshing}>
           {isRefreshing ? "Checking" : "Check"}

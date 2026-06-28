@@ -10,6 +10,7 @@ const screenshotDir = path.join(root, ".tmp", "ui-smoke");
 const sourceChecks = [
   ["src/App.tsx", "LibraryHomePanel"],
   ["src/App.tsx", "ProductionReadinessPanel"],
+  ["src/App.tsx", "SourceRegistryPanel"],
   ["src/App.tsx", "SagaRecoveryPanel"],
   ["src/App.tsx", "SecurityCenterPanel"],
   ["src/App.tsx", "NotificationGatewayPanel"],
@@ -20,6 +21,7 @@ const sourceChecks = [
   ["src/components/CodebaseMemoryPanel.tsx", "Codebase Memory"],
   ["src/App.tsx", "PermissionMemoryPanel"],
   ["src/components/PermissionMemoryPanel.tsx", "Permission Memory"],
+  ["src/components/SourceRegistryPanel.tsx", "Data Source Registry"],
   ["src/App.css", ".shell"],
   ["src/App.css", ".workspace"],
 ];

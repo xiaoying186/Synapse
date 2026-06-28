@@ -13,4 +13,5 @@ pub mod permission_memory;
 pub mod production_readiness;
 pub mod quant_lab;
 pub mod saga_recovery;
+pub mod source_registry;
 pub mod web_app_shell;
