@@ -1,0 +1,118 @@
+# Synapse runtime configuration.
+#
+# The current prototype reads a subset of this file:
+# - [system].mode
+# - [system].app_name
+# - [system].instance_id
+# - [system].mode_lock_auto
+# - [execution].level
+# - [execution].max_steps
+# - [execution].step_timeout_seconds
+# - [execution].failure_strategy
+# - [sandbox].default
+
+[system]
+# lite = local personal assistant mode
+# pro  = traceable professional mode
+mode = "lite"
+
+app_name = "Synapse"
+instance_id = "synapse-local-01"
+smooth_transition = true
+pro_dimensions = ["strict", "accurate"]
+mode_lock_auto = true
+
+[storage]
+data_dir = "./data"
+
+[storage.l0]
+max_session_mb = 256
+quarantine_policy = "quarantine"
+
+[storage.l1]
+backend = "sqlite"
+path = "l1_working.db"
+ttl_seconds = 604800
+
+[storage.l2]
+backend = "sqlite"
+path = "l2_knowledge.db"
+vector_index = true
+vector_dim = 1024
+
+[execution]
+# L0_SINGLE = shallow linear execution
+# L1_LINEAR = deeper retryable execution
+# L2_GRAPH  = DAG execution, intended for Pro mode
+level = "L0_SINGLE"
+max_steps = 128
+max_concurrency = 8
+step_timeout_seconds = 60
+
+# auto_fallback = Lite default
+# saga          = Pro rollback-oriented strategy
+failure_strategy = "auto_fallback"
+
+# Recall weighting scaffold. These values are not yet used by the prototype UI.
+alpha = 0.4
+beta = 0.3
+gamma = 0.2
+delta = 0.1
+
+[scheduler]
+# When enabled, the loop only creates Task Runs that still require approval.
+background_loop_enabled = false
+poll_interval_seconds = 30
+
+[aggregation]
+# Exact allowlisted read-only JSON endpoint. Leave empty to disable HTTP retrieval.
+http_source_url = ""
+
+[browser]
+# Comma-separated exact hostnames allowed for read-only browser inspection.
+allowed_hosts = ""
+
+[notifications.email]
+# Credentials are read only from SYNAPSE_SMTP_USERNAME and SYNAPSE_SMTP_PASSWORD.
+smtp_host = ""
+smtp_port = 587
+from = ""
+to = ""
+
+[notifications.feishu]
+# Webhook URLs are local-only secrets. Preview can detect configured state;
+# delivery remains disabled in the V6.5 baseline.
+webhook_url = ""
+
+[notifications.wechat]
+# Webhook URLs are local-only secrets. Preview can detect configured state;
+# delivery remains disabled in the V6.5 baseline.
+webhook_url = ""
+
+[safety]
+# External side effects stay disabled by default in the V6.5 production baseline.
+external_delivery_enabled = false
+agent_execution_enabled = false
+
+[sync.relay]
+# Disabled by default. This stage only previews relay readiness; no upload occurs.
+enabled = false
+endpoint = ""
+
+[sandbox]
+default = "wasi"
+high_risk = "wasi"
+
+[sandbox.wasi]
+memory_mb = 10
+enable_cache = true
+allowed_fs_roots = ["./sandbox/fs"]
+allow_network = false
+
+[sandbox.cost]
+max_cost_per_call = 100
+max_cost_per_session = 10000
+
+[sandbox.container]
+runtime = "podman"
+binary_path = ""

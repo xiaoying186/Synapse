@@ -1,0 +1,38 @@
+{
+  "name": "synapse",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "git:bootstrap": "node scripts/git-bootstrap.mjs",
+    "git:diagnose": "node scripts/git-diagnose.mjs",
+    "preflight": "node scripts/production-preflight.mjs",
+    "preflight:release:json": "node scripts/production-preflight.mjs --static --release --json",
+    "preflight:release": "node scripts/production-preflight.mjs --static --release",
+    "preflight:static": "node scripts/production-preflight.mjs --static",
+    "preview": "vite preview",
+    "release:doctor": "node scripts/release-doctor.mjs",
+    "release:evidence": "node scripts/release-evidence.mjs",
+    "release:status": "node scripts/release-status.mjs",
+    "smoke:ui": "node scripts/ui-smoke.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "wix:diagnose": "node scripts/wix-diagnose.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.10.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4"
+  }
+}

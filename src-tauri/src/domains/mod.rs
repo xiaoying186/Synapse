@@ -1,0 +1,16 @@
+pub mod agent_harness;
+pub mod agent_team;
+pub mod browser_automation;
+pub mod codebase_memory;
+pub mod computer_diagnostics;
+pub mod context_budget;
+pub mod daily_briefing;
+pub mod device_sync;
+pub mod library_home;
+pub mod local_app_bridge;
+pub mod notification_gateway;
+pub mod permission_memory;
+pub mod production_readiness;
+pub mod quant_lab;
+pub mod saga_recovery;
+pub mod web_app_shell;

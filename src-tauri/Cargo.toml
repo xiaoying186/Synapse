@@ -1,0 +1,26 @@
+[package]
+name = "synapse"
+version = "0.1.0"
+description = "Synapse v5.0 - Unified Dual-Mode Cognitive OS Kernel"
+authors = ["Synapse"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix keeps the library name distinct from the binary name on Windows.
+name = "synapse_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.5.6", features = [] }
+
+[dependencies]
+tauri = { version = "=2.10.3", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+thiserror = "1"
+reqwest = { version = "=0.12.28", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+lettre = { version = "=0.11.22", default-features = false, features = ["builder", "hostname", "smtp-transport", "rustls-tls"] }
+sha2 = "0.10"
+hex = "0.4"
