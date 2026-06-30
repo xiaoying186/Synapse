@@ -22,6 +22,8 @@ Internal design document versions are not public release numbers.
   Security Center capability evidence.
 - Added UI smoke coverage for English/Simplified Chinese language switching,
   including persisted language mode and `document.documentElement.lang`.
+- Extracted Production Overview preview state and refresh operations from
+  `App.tsx` into a focused hook without changing UI behavior.
 
 ### Changed
 

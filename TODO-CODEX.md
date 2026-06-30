@@ -55,7 +55,8 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
       synchronized with `npm.cmd run i18n:check`.
 - [x] Add focused UI smoke coverage for language switching.
 - [ ] Continue reducing `src/App.tsx` by moving domain-specific state and
-      invoke operations into focused hooks without changing behavior.
+      invoke operations into focused hooks without changing behavior. Initial
+      Production Overview hook extraction is complete.
 - [ ] Extend production readiness checks to report i18n coverage and release
       artifact freshness.
 
