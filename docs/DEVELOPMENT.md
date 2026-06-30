@@ -40,6 +40,7 @@ The frontend dev server is started by the Tauri dev command.
 
 ```powershell
 npm.cmd run preflight:static
+npm.cmd run i18n:check
 npm.cmd run build
 npm.cmd run preflight
 npm.cmd run smoke:ui
@@ -71,5 +72,9 @@ bundle in a network-enabled release environment before claiming MSI readiness.
 - Do not enable external delivery by default.
 - Do not enable direct Agent execution by default.
 - Do not add browser write automation without explicit guardrail review.
+- Keep user-facing UI copy bilingual. Add English and Simplified Chinese keys
+  together under `src/i18n/translations.ts`, use the design-document names
+  Taiheng / 太衡, Zhishu / 智枢, Xingtai / 行台, and Baigong / 百工, and run
+  `npm.cmd run i18n:check` before committing UI text changes.
 - Do not commit `.synapse/`, `.tmp/`, `dist/`, `target/`, local databases, MSI
   artifacts, or secrets.

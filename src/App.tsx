@@ -38,7 +38,9 @@ import { TaskRunPanel } from "./components/TaskRunPanel";
 import { TracePanel } from "./components/TracePanel";
 import { ZhishuCapturePanel } from "./components/ZhishuCapturePanel";
 import { ZhishuSearchPanel } from "./components/ZhishuSearchPanel";
+import { LanguageSelector } from "./components/LanguageSelector";
 import { useActivityLog } from "./app/useActivityLog";
+import { useI18n } from "./i18n";
 import type {
   AdapterExecutionReceipt,
   AgentDryRunReceipt,
@@ -116,6 +118,7 @@ import type {
 import "./App.css";
 
 function App() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [plan, setPlan] = useState<PlanPreview | null>(null);
   const [history, setHistory] = useState<PlanRecord[]>([]);
@@ -284,7 +287,7 @@ function App() {
   const [executingRunId, setExecutingRunId] = useState<string | null>(null);
   const [promotingSynthesisCandidateId, setPromotingSynthesisCandidateId] = useState<string | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
-  const { activity, setActivity } = useActivityLog("Waiting for an intent or question.");
+  const { activity, setActivity } = useActivityLog(t("activity.waiting"));
 
   useEffect(() => {
     invoke<SystemStatus>("get_system_status")
@@ -1873,57 +1876,58 @@ function App() {
     <main className="shell">
       <aside className="sidebar">
         <div>
-          <p className="eyebrow">Synapse v5.0</p>
-          <h1>{status?.app_name ?? "Synapse"}</h1>
+          <p className="eyebrow">{t("app.version")}</p>
+          <h1>{status?.app_name ?? t("app.nameFallback")}</h1>
         </div>
 
-        <nav className="nav" aria-label="Primary">
-          <button className="nav-item active" type="button">Workbench</button>
-          <button className="nav-item" type="button">Plans</button>
-          <button className="nav-item" type="button">Memory</button>
-          <button className="nav-item" type="button">Audit</button>
+        <nav className="nav" aria-label={t("nav.primary")}>
+          <button className="nav-item active" type="button">{t("nav.workbench")}</button>
+          <button className="nav-item" type="button">{t("nav.plans")}</button>
+          <button className="nav-item" type="button">{t("nav.memory")}</button>
+          <button className="nav-item" type="button">{t("nav.audit")}</button>
         </nav>
 
         <div className="mode-panel">
-          <span>Current mode</span>
-          <strong>{status?.mode ?? "Loading"}</strong>
+          <span>{t("mode.current")}</span>
+          <strong>{status?.mode ?? t("mode.loading")}</strong>
           <small>{status?.instance_id ?? "synapse-local"}</small>
         </div>
+        <LanguageSelector />
       </aside>
 
-      <section className="workspace" aria-label="Synapse workspace">
+      <section className="workspace" aria-label={t("app.workspaceAria")}>
         <header className="topbar">
           <div>
-            <p className="eyebrow">Unified kernel</p>
-            <h2>Cognitive execution workbench</h2>
+            <p className="eyebrow">{t("topbar.eyebrow")}</p>
+            <h2>{t("topbar.title")}</h2>
           </div>
           <div className="status-pill">{status?.sandbox ?? "..."}</div>
         </header>
 
-        <section className="overview" aria-label="System overview">
+        <section className="overview" aria-label={t("overview.aria")}>
           <div className="metric">
-            <span>Execution level</span>
+            <span>{t("overview.executionLevel")}</span>
             <strong>{status?.execution_level ?? "..."}</strong>
           </div>
           <div className="metric">
-            <span>Memory isolation</span>
-            <strong>{status?.memory_scopes.length ?? 0} layers</strong>
+            <span>{t("overview.memoryIsolation")}</span>
+            <strong>{status?.memory_scopes.length ?? 0} {t("overview.layers")}</strong>
           </div>
           <div className="metric">
-            <span>Step budget</span>
-            <strong>{status?.max_steps ?? "..."} steps</strong>
+            <span>{t("overview.stepBudget")}</span>
+            <strong>{status?.max_steps ?? "..."} {t("overview.steps")}</strong>
           </div>
           <div className={status?.config_warnings.length ? "metric warning" : "metric"}>
-            <span>Config health</span>
-            <strong>{status?.config_warnings.length ? "Warnings" : "Clean"}</strong>
+            <span>{t("overview.configHealth")}</span>
+            <strong>{status?.config_warnings.length ? t("overview.configWarnings") : t("overview.configClean")}</strong>
           </div>
         </section>
 
         {status && status.config_warnings.length > 0 && (
           <section className="panel warning-panel">
             <div className="panel-heading">
-              <p className="eyebrow">Runtime config</p>
-              <h3>Warnings</h3>
+              <p className="eyebrow">{t("runtimeConfig.eyebrow")}</p>
+              <h3>{t("runtimeConfig.warnings")}</h3>
             </div>
             <div className="warning-list">
               {status.config_warnings.map((warning) => (
@@ -1964,8 +1968,8 @@ function App() {
 
         <section className="panel intent-panel">
           <div className="panel-heading">
-            <p className="eyebrow">Plan IR</p>
-            <h3>Intent input</h3>
+            <p className="eyebrow">{t("intent.eyebrow")}</p>
+            <h3>{t("intent.title")}</h3>
           </div>
 
           <form
@@ -1977,10 +1981,10 @@ function App() {
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}
-              placeholder="Example: organize today's development tasks and generate the next plan"
+              placeholder={t("intent.placeholder")}
             />
             <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Working" : "Submit"}
+              {isSubmitting ? t("intent.working") : t("intent.submit")}
             </button>
           </form>
         </section>

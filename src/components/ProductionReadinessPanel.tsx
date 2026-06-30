@@ -1,4 +1,5 @@
 import type { ProductionReadinessPreview } from "../types";
+import { useI18n } from "../i18n";
 
 type ProductionReadinessPanelProps = {
   isRefreshing: boolean;
@@ -11,15 +12,17 @@ export function ProductionReadinessPanel({
   onRefresh,
   preview,
 }: ProductionReadinessPanelProps) {
+  const { t } = useI18n();
+
   return (
     <section className="panel production-readiness-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Production readiness</p>
-          <h3>0.0.0 local-first gate check</h3>
+          <p className="eyebrow">{t("production.eyebrow")}</p>
+          <h3>{t("production.title")}</h3>
         </div>
         <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          {isRefreshing ? "Checking" : "Check"}
+          {isRefreshing ? t("production.checking") : t("production.check")}
         </button>
       </div>
 
@@ -44,13 +47,13 @@ export function ProductionReadinessPanel({
                 </div>
                 <b>{check.state}</b>
                 <small>{check.detail}</small>
-                {check.remediation && <em>Fix: {check.remediation}</em>}
+                {check.remediation && <em>{t("production.fix")}: {check.remediation}</em>}
               </article>
             ))}
           </div>
         </>
       ) : (
-        <p className="empty-state">Production readiness has not been checked yet.</p>
+        <p className="empty-state">{t("production.empty")}</p>
       )}
     </section>
   );

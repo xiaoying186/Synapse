@@ -33,5 +33,8 @@ jobs:
       - name: Static public baseline preflight
         run: npm.cmd run preflight:static
 
+      - name: I18n key sync
+        run: npm.cmd run i18n:check
+
       - name: Build frontend
         run: npm.cmd run build

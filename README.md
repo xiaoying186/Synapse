@@ -39,6 +39,8 @@ Xingtai and Baigong.
 - Library Home, Production Readiness, Saga Recovery, and Security Center panels.
 - Preview-only Data Source Registry governance metadata.
 - Windows MSI distribution through GitHub Releases with SHA-256 verification.
+- Application-level English / Simplified Chinese language switching with
+  synchronized translation-key checks.
 
 See [docs/CAPABILITY_MATRIX.md](docs/CAPABILITY_MATRIX.md) for the full public
 capability matrix.

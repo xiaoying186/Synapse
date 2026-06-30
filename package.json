@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "git:bootstrap": "node scripts/git-bootstrap.mjs",
     "git:diagnose": "node scripts/git-diagnose.mjs",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "preflight": "node scripts/production-preflight.mjs",
     "preflight:release:json": "node scripts/production-preflight.mjs --static --release --json",
     "preflight:release": "node scripts/production-preflight.mjs --static --release",

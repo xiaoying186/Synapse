@@ -1,4 +1,5 @@
 import type { LibraryHomePreview } from "../types";
+import { useI18n } from "../i18n";
 
 type LibraryHomePanelProps = {
   isRefreshing: boolean;
@@ -11,15 +12,17 @@ export function LibraryHomePanel({
   onRefresh,
   preview,
 }: LibraryHomePanelProps) {
+  const { t } = useI18n();
+
   return (
     <section className="panel library-home-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Library home</p>
-          <h3>Zhishu, backup, and recycle overview</h3>
+          <p className="eyebrow">{t("library.eyebrow")}</p>
+          <h3>{t("library.title")}</h3>
         </div>
         <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          {isRefreshing ? "Refreshing" : "Refresh"}
+          {isRefreshing ? t("library.refreshing") : t("library.refresh")}
         </button>
       </div>
 
@@ -36,55 +39,55 @@ export function LibraryHomePanel({
           <div className="source-gate-list">
             <article className="source-gate-item">
               <div>
-                <span>Zhishu memory</span>
+                <span>{t("library.zhishuMemory")}</span>
                 <strong>{preview.recent_memory_count}</strong>
               </div>
-              <b>{preview.pending_review_count} pending</b>
-              <small>Recent sampled items</small>
+              <b>{preview.pending_review_count} {t("library.pending")}</b>
+              <small>{t("library.recentSampledItems")}</small>
             </article>
             <article className="source-gate-item">
               <div>
-                <span>Task outputs</span>
+                <span>{t("library.taskOutputs")}</span>
                 <strong>{preview.recent_task_artifact_count}</strong>
               </div>
-              <b>quarantined artifacts</b>
-              <small>Promotion stays review-gated</small>
+              <b>{t("library.quarantinedArtifacts")}</b>
+              <small>{t("library.promotionReviewGated")}</small>
             </article>
             <article className="source-gate-item">
               <div>
-                <span>Restore points</span>
+                <span>{t("library.restorePoints")}</span>
                 <strong>{preview.recent_backup_snapshot_count}</strong>
               </div>
-              <b>protected snapshots</b>
-              <small>Restore requires explicit review</small>
+              <b>{t("library.protectedSnapshots")}</b>
+              <small>{t("library.restoreRequiresReview")}</small>
             </article>
             <article className="source-gate-item">
               <div>
-                <span>Recycle candidates</span>
+                <span>{t("library.recycleCandidates")}</span>
                 <strong>{preview.recycle_candidate_count}</strong>
               </div>
               <b>{preview.recycle_state}</b>
-              <small>Restore still requires explicit review</small>
+              <small>{t("library.restoreRequiresReview")}</small>
             </article>
             <article className="source-gate-item">
               <div>
-                <span>Saga recovery</span>
+                <span>{t("library.sagaRecovery")}</span>
                 <strong>{preview.active_saga_count}</strong>
               </div>
-              <b>active or failed</b>
-              <small>{preview.recent_sagas.length} recent transactions</small>
+              <b>{t("library.activeOrFailed")}</b>
+              <small>{preview.recent_sagas.length} {t("library.recentTransactions")}</small>
             </article>
           </div>
 
           <div className="retrieval-contract">
-            <span>Recoverability policy</span>
+            <span>{t("library.recoverabilityPolicy")}</span>
             <strong>{preview.backup_library_policy}</strong>
             <p>{preview.restore_policy}</p>
             <small>{preview.recycle_policy}</small>
           </div>
 
           <div className="retrieval-contract">
-            <span>Memory layers</span>
+            <span>{t("library.memoryLayers")}</span>
             <div className="policy-tiers">
               {preview.memory_by_level.length > 0 ? (
                 preview.memory_by_level.map((metric) => (
@@ -93,10 +96,10 @@ export function LibraryHomePanel({
                   </span>
                 ))
               ) : (
-                <span>no memory items</span>
+                <span>{t("library.noMemoryItems")}</span>
               )}
             </div>
-            <span>Hub areas</span>
+            <span>{t("library.hubAreas")}</span>
             <div className="policy-tiers">
               {preview.memory_by_area.length > 0 ? (
                 preview.memory_by_area.map((metric) => (
@@ -105,7 +108,7 @@ export function LibraryHomePanel({
                   </span>
                 ))
               ) : (
-                <span>no hub areas</span>
+                <span>{t("library.noHubAreas")}</span>
               )}
             </div>
           </div>
@@ -144,7 +147,7 @@ export function LibraryHomePanel({
             {preview.recycle_candidates.slice(0, 4).map((snapshot) => (
               <article className="source-gate-item" key={`recycle-${snapshot.id}`}>
                 <div>
-                  <span>Recycle preview</span>
+                  <span>{t("library.recyclePreview")}</span>
                   <strong>{snapshot.object_id}</strong>
                 </div>
                 <b>{snapshot.object_type}</b>
@@ -164,7 +167,7 @@ export function LibraryHomePanel({
           </div>
         </>
       ) : (
-        <p className="empty-state">Library projection is waiting for a local preview.</p>
+        <p className="empty-state">{t("library.empty")}</p>
       )}
     </section>
   );
