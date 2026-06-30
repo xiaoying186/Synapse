@@ -7,9 +7,9 @@ Current public version: `0.0.0`
 Public stage: `Initial Public Baseline`
 Internal design alignment: `Synapse Design V6.6`
 
-Synapse `0.0.0` is the Synapse 0.0.0 Public Baseline for local development and
-guarded review. It is a guarded local-first baseline, not a stable end-user
-automation release.
+Synapse `0.0.0` is the Synapse 0.0.0 Public Baseline for guarded local desktop
+use, local development, and review. It is a guarded local-first baseline, not a
+stable end-user automation release.
 
 ## Architecture
 
@@ -38,6 +38,7 @@ Xingtai and Baigong.
 - Read-only information/source health previews with quarantine boundaries.
 - Library Home, Production Readiness, Saga Recovery, and Security Center panels.
 - Preview-only Data Source Registry governance metadata.
+- Windows MSI distribution through GitHub Releases with SHA-256 verification.
 
 See [docs/CAPABILITY_MATRIX.md](docs/CAPABILITY_MATRIX.md) for the full public
 capability matrix.
@@ -54,15 +55,19 @@ Synapse `0.0.0` does not ship:
 - automatic cleanup, file deletion, registry writes, or system maintenance;
 - automatic durable L2 knowledge admission without review;
 - cloud sync as a source of truth;
-- a signed or verified public installer release.
+- a signed public installer release.
 
 See [docs/CLAIM_BOUNDARIES.md](docs/CLAIM_BOUNDARIES.md) for the precise public
 claim boundaries.
 
 ## Quick Start
 
-Install Node.js, Rust stable MSVC, WebView2, and the Tauri prerequisites for
-Windows.
+For Windows desktop use, download the MSI from
+[GitHub Releases](https://github.com/xiaoying186/Synapse/releases/tag/v0.0.0)
+and verify it with the matching `.sha256` file before installing.
+
+For development from source, install Node.js, Rust stable MSVC, WebView2, and
+the Tauri prerequisites for Windows.
 
 ```powershell
 npm.cmd ci
@@ -82,8 +87,7 @@ cargo check --offline
 
 Synapse is not published as an npm package. `package.json` keeps
 `"private": true`; npm scripts are development/build entry points. Public
-distribution should happen through GitHub releases and desktop installers once
-release evidence is ready.
+distribution happens through GitHub Releases and desktop installers.
 
 ## Documentation
 
@@ -125,6 +129,5 @@ npm.cmd run release:status -- --json
 npm.cmd run release:doctor -- --json
 ```
 
-At the current baseline, a public GitHub release should wait until a release MSI
-matching `0.0.0` is built, reviewed, hashed, and documented. Debug MSI artifacts
-must not be distributed as official releases.
+The `v0.0.0` GitHub Release publishes a Windows MSI and matching SHA-256
+sidecar. Debug MSI artifacts must not be distributed as official releases.
