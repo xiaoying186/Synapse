@@ -1,0 +1,28 @@
+name: Documentation fix
+description: Report unclear, outdated, or misleading public documentation.
+title: "[Docs]: "
+labels: ["type: docs", "status: needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include private design documents, personal workflows, secrets, local paths, or unpublished plans.
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Which file or section needs a documentation fix?
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is unclear, outdated, or potentially misleading?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+      description: What should the documentation say instead?

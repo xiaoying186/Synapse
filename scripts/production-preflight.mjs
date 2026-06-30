@@ -273,6 +273,7 @@ const license = readProtectedText("LICENSE", "license-file", "License");
 const securityPolicy = readProtectedText("SECURITY.md", "security-policy-file", "Security policy");
 const contributing = readProtectedText("CONTRIBUTING.md", "contributing-file", "Contributing guide");
 const envExample = readProtectedText(".env.example", "env-example-file", "Environment example");
+const changelog = readProtectedText("CHANGELOG.md", "changelog-file", "Changelog");
 const versioning = readProtectedText("VERSIONING.md", "versioning-file", "Versioning policy");
 const capabilityMatrix = readProtectedText(
   "docs/CAPABILITY_MATRIX.md",
@@ -293,6 +294,21 @@ const publicBaselineStatus = readProtectedText(
   "docs/PUBLIC_BASELINE_STATUS.md",
   "public-baseline-status-file",
   "Public baseline status",
+);
+const developmentGuide = readProtectedText(
+  "docs/DEVELOPMENT.md",
+  "development-guide-file",
+  "Development guide",
+);
+const installationGuide = readProtectedText(
+  "docs/INSTALLATION.md",
+  "installation-guide-file",
+  "Installation guide",
+);
+const localDataPrivacy = readProtectedText(
+  "docs/LOCAL_DATA_AND_PRIVACY.md",
+  "local-data-privacy-file",
+  "Local data and privacy guide",
 );
 const claimBoundaries = readProtectedText(
   "docs/CLAIM_BOUNDARIES.md",
@@ -324,15 +340,20 @@ const securityBoundaryTemplate = readProtectedText(
   "security-boundary-template-file",
   "Security boundary issue template",
 );
+const documentationFixTemplate = readProtectedText(
+  ".github/ISSUE_TEMPLATE/documentation_fix.yml",
+  "documentation-fix-template-file",
+  "Documentation fix issue template",
+);
 const pullRequestTemplate = readProtectedText(
   ".github/pull_request_template.md",
   "pull-request-template-file",
   "Pull request template",
 );
 const githubWorkflow = readProtectedText(
-  ".github/workflows/v65-local-baseline.yml",
-  "github-local-baseline-workflow-file",
-  "GitHub Actions local baseline workflow",
+  ".github/workflows/public-baseline.yml",
+  "github-public-baseline-workflow-file",
+  "GitHub Actions public baseline workflow",
 );
 const gitBootstrap = readProtectedText(
   "scripts/git-bootstrap.mjs",
@@ -535,7 +556,7 @@ if (releaseDistributionNotes) {
 if (readme) {
   const requiredReadmeItems = [
     "Public Repository Policy",
-    "Local Production Baseline",
+    "Release Status",
     PUBLIC_BASELINE_NAME,
     INTERNAL_DESIGN_ALIGNMENT,
     "Taiheng",
@@ -547,10 +568,14 @@ if (readme) {
     "docs/CLAIM_BOUNDARIES.md",
     "SECURITY.md",
     "CONTRIBUTING.md",
+    "docs/DEVELOPMENT.md",
+    "docs/INSTALLATION.md",
+    "docs/LOCAL_DATA_AND_PRIVACY.md",
+    "CHANGELOG.md",
     "npm.cmd run preflight:release",
     "npm.cmd run release:evidence",
     "npm.cmd run release:status",
-    "Do Not Claim In This Baseline",
+    "Do Not Claim",
     "guarded local-first baseline",
   ];
   const missingReadmeItems = requiredReadmeItems.filter((item) => !readme.includes(item));
@@ -630,6 +655,24 @@ if (envExample) {
       "env-example",
       `Missing env example item(s): ${missingEnvItems.join(" / ")}`,
       "Restore .env.example with empty placeholders only.",
+    );
+  }
+}
+
+if (changelog) {
+  const requiredChangelogItems = [
+    "0.0.0 - Initial Public Baseline",
+    "Internal design document versions are not public release numbers",
+    "unrestricted Agent execution",
+  ];
+  const missingChangelogItems = requiredChangelogItems.filter((item) => !changelog.includes(item));
+  if (missingChangelogItems.length === 0) {
+    pass("changelog-public-versioning", "CHANGELOG.md documents public versions without internal design release numbers");
+  } else {
+    fail(
+      "changelog-public-versioning",
+      `Missing changelog item(s): ${missingChangelogItems.join(" / ")}`,
+      "Restore CHANGELOG.md before tagging a public baseline.",
     );
   }
 }
@@ -720,7 +763,15 @@ if (sourceRegistryDoc) {
   }
 }
 
-if (publicBaselineStatus && claimBoundaries && architectureOverview && publicRoadmap) {
+if (
+  publicBaselineStatus &&
+  claimBoundaries &&
+  architectureOverview &&
+  developmentGuide &&
+  installationGuide &&
+  localDataPrivacy &&
+  publicRoadmap
+) {
   const requiredPublicDocItems = [
     [publicBaselineStatus, "Synapse 0.0.0 Public Baseline Status"],
     [publicBaselineStatus, "Not Included In This Baseline"],
@@ -730,6 +781,12 @@ if (publicBaselineStatus && claimBoundaries && architectureOverview && publicRoa
     [architectureOverview, "Zhishu / Intelligence Hub"],
     [architectureOverview, "Xingtai / Action Desk"],
     [architectureOverview, "Baigong / Arsenal"],
+    [developmentGuide, "Rust stable MSVC toolchain"],
+    [developmentGuide, "npm.cmd run preflight:static"],
+    [installationGuide, "Installer Status"],
+    [installationGuide, "Debug MSI artifacts"],
+    [localDataPrivacy, "Synapse is local-first"],
+    [localDataPrivacy, ".synapse/"],
     [publicRoadmap, "0.0.x"],
     [publicRoadmap, "1.0.0"],
   ];
@@ -747,12 +804,20 @@ if (publicBaselineStatus && claimBoundaries && architectureOverview && publicRoa
   }
 }
 
-if (bugReportTemplate && featureRequestTemplate && securityBoundaryTemplate && pullRequestTemplate) {
+if (
+  bugReportTemplate &&
+  featureRequestTemplate &&
+  securityBoundaryTemplate &&
+  documentationFixTemplate &&
+  pullRequestTemplate
+) {
   const requiredTemplateItems = [
     [bugReportTemplate, "Do not include secrets"],
     [featureRequestTemplate, "Boundary check"],
     [securityBoundaryTemplate, "External delivery or webhook push"],
     [securityBoundaryTemplate, "Credential or secret handling"],
+    [documentationFixTemplate, "Documentation fix"],
+    [documentationFixTemplate, "private design documents"],
     [pullRequestTemplate, "Does not enable external delivery by default"],
     [pullRequestTemplate, "docs/CLAIM_BOUNDARIES.md"],
   ];
@@ -771,30 +836,26 @@ if (bugReportTemplate && featureRequestTemplate && securityBoundaryTemplate && p
 }
 
 const requiredWorkflowItems = [
-  PUBLIC_BASELINE_NAME,
+  "Synapse Public Baseline",
   "windows-latest",
+  "permissions:",
+  "contents: read",
+  "actions/checkout@v4",
+  "actions/setup-node@v4",
+  "dtolnay/rust-toolchain@stable",
   "npm ci",
-  "npm run preflight:static",
-  "npm run smoke:ui",
-  "cargo fmt --check",
-  "npm run preflight",
-  "npm run release:evidence",
-  "npm run release:status -- --json",
-  "npm run release:doctor -- --json",
-  "actions/upload-artifact@v4",
-  "synapse-000-release-evidence",
-  "synapse-000-ui-smoke",
-  "continue-on-error: true",
+  "npm.cmd run preflight:static",
+  "npm.cmd run build",
 ];
 if (githubWorkflow) {
   const missingWorkflowItems = requiredWorkflowItems.filter((item) => !githubWorkflow.includes(item));
   if (missingWorkflowItems.length === 0) {
-    pass("github-local-baseline-workflow", "GitHub Actions local baseline workflow is present");
+    pass("github-public-baseline-workflow", "GitHub Actions public baseline workflow is present");
   } else {
     fail(
-      "github-local-baseline-workflow",
+      "github-public-baseline-workflow",
       `Missing workflow item(s): ${missingWorkflowItems.join(" / ")}`,
-      "Restore .github/workflows/v65-local-baseline.yml before publishing to GitHub.",
+      "Restore .github/workflows/public-baseline.yml before publishing to GitHub.",
     );
   }
 }
