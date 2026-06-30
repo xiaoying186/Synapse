@@ -40,9 +40,30 @@ pub struct AgentDryRunReceipt {
     pub executable_path: Option<String>,
     pub argument_preview: Vec<String>,
     pub context_references: Vec<AgentContextReference>,
+    pub repository_trust: RepositoryTrustPreview,
+    pub command_safety: CommandSafetyPreview,
     pub output_ingestion_policy: String,
     pub gates: Vec<String>,
     pub process_started: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RepositoryTrustPreview {
+    pub state: String,
+    pub level: String,
+    pub remote_scope: String,
+    pub remote_host: Option<String>,
+    pub detail: String,
+    pub gates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CommandSafetyPreview {
+    pub state: String,
+    pub risk_level: String,
+    pub denied_markers: Vec<String>,
+    pub review_markers: Vec<String>,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -204,12 +225,14 @@ fn dry_run_contract(request: AgentDryRunRequest) -> Result<AgentDryRunReceipt, s
     } else {
         Vec::new()
     };
+    let repository_trust = repository_trust_preview();
+    let command_safety = classify_agent_input(&input);
     let output_ingestion_policy = if mode == "deep" {
         "review-before-memory"
     } else {
         "quarantine-output"
     };
-    let state = readiness_state(&tool, &run);
+    let state = readiness_state(&tool, &run, &repository_trust, &command_safety);
     Ok(AgentDryRunReceipt {
         tool_id: tool.id.clone(),
         tool_label: tool.label,
@@ -226,6 +249,8 @@ fn dry_run_contract(request: AgentDryRunRequest) -> Result<AgentDryRunReceipt, s
             input.chars().count(),
         ),
         context_references,
+        repository_trust,
+        command_safety,
         output_ingestion_policy: output_ingestion_policy.to_string(),
         gates: vec![
             "tool-detected".to_string(),
@@ -235,6 +260,8 @@ fn dry_run_contract(request: AgentDryRunRequest) -> Result<AgentDryRunReceipt, s
             "argument-vector-only".to_string(),
             "read-only-sandbox".to_string(),
             "workspace-boundary".to_string(),
+            "repository-trust-preview".to_string(),
+            "agent-input-command-safety-preview".to_string(),
             "credential-env-filter".to_string(),
             "pre-execution-rollback-snapshot".to_string(),
             "post-execution-output-review".to_string(),
@@ -484,11 +511,20 @@ fn project_root() -> std::path::PathBuf {
         .to_path_buf()
 }
 
-fn readiness_state(tool: &arsenal::ToolDescriptor, run: &store::TaskRunRecord) -> &'static str {
+fn readiness_state(
+    tool: &arsenal::ToolDescriptor,
+    run: &store::TaskRunRecord,
+    repository_trust: &RepositoryTrustPreview,
+    command_safety: &CommandSafetyPreview,
+) -> &'static str {
     if tool.discovery_state != "detected" {
         "blocked-not-detected"
     } else if tool.allow_state != "allowed" {
         "blocked-not-allowed"
+    } else if repository_trust.state == "blocked" {
+        "blocked-repository-trust"
+    } else if command_safety.state == "blocked" {
+        "blocked-command-safety"
     } else if run.lifecycle_state != "approved"
         || run.approval_state != "approved"
         || run.execution_state != "approved-not-started"
@@ -496,6 +532,201 @@ fn readiness_state(tool: &arsenal::ToolDescriptor, run: &store::TaskRunRecord) -
         "blocked-run-not-approved"
     } else {
         "ready-for-explicit-execution-approval"
+    }
+}
+
+fn repository_trust_preview() -> RepositoryTrustPreview {
+    let root = project_root();
+    let git_path = root.join(".git");
+    if !git_path.exists() {
+        return RepositoryTrustPreview {
+            state: "blocked".to_string(),
+            level: "unknown-workspace".to_string(),
+            remote_scope: "unknown".to_string(),
+            remote_host: None,
+            detail: ".git is missing; Agent execution cannot trust repository boundaries."
+                .to_string(),
+            gates: vec!["git-metadata-required".to_string()],
+        };
+    }
+    let dirty = git_dirty_state(&root).unwrap_or_else(|| "unknown".to_string());
+    let (remote_scope, remote_host, remote_gate) = match git_remote_origin_url(&root) {
+        Some(remote_url) => {
+            let host = remote_host_preview(&remote_url);
+            (
+                "remote-visibility-unknown".to_string(),
+                host,
+                "remote-origin-review".to_string(),
+            )
+        }
+        None => (
+            "local-only-or-unconfigured".to_string(),
+            None,
+            "remote-origin-not-configured".to_string(),
+        ),
+    };
+    let (state, level, detail) = match dirty.as_str() {
+        "clean" => (
+            "pass",
+            "known-clean-workspace",
+            "Git metadata is present and no local modifications were reported.",
+        ),
+        "dirty" => (
+            "review-required",
+            "known-dirty-workspace",
+            "Git metadata is present but local modifications require review before Agent execution.",
+        ),
+        _ => (
+            "review-required",
+            "known-workspace-status-unknown",
+            "Git metadata is present but workspace cleanliness could not be verified.",
+        ),
+    };
+    RepositoryTrustPreview {
+        state: state.to_string(),
+        level: level.to_string(),
+        remote_scope,
+        remote_host,
+        detail: detail.to_string(),
+        gates: vec![
+            "git-metadata-present".to_string(),
+            "workspace-boundary-local-project-root".to_string(),
+            "dirty-worktree-review".to_string(),
+            remote_gate,
+        ],
+    }
+}
+
+fn git_dirty_state(root: &std::path::Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    if output.stdout.is_empty() {
+        Some("clean".to_string())
+    } else {
+        Some("dirty".to_string())
+    }
+}
+
+fn git_remote_origin_url(root: &std::path::Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["config", "--get", "remote.origin.url"])
+        .current_dir(root)
+        .output()
+        .ok()?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+fn remote_host_preview(remote_url: &str) -> Option<String> {
+    let trimmed = remote_url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .or_else(|| trimmed.strip_prefix("ssh://"))
+        .unwrap_or(trimmed);
+    let without_credentials = without_scheme
+        .rsplit_once('@')
+        .map(|(_, host)| host)
+        .unwrap_or(without_scheme);
+    let host = without_credentials
+        .split(['/', ':'])
+        .next()
+        .unwrap_or("")
+        .trim();
+
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_ascii_lowercase())
+    }
+}
+
+fn classify_agent_input(input: &str) -> CommandSafetyPreview {
+    let normalized = input.to_ascii_lowercase();
+    let denied_markers = [
+        "rm -rf",
+        "remove-item -recurse",
+        "del /s",
+        "rmdir /s",
+        "format ",
+        "git reset --hard",
+        "git checkout --",
+        "git clean -fd",
+        "set-executionpolicy",
+        "invoke-expression",
+        "curl ",
+        "wget ",
+        "gh auth token",
+        ".env",
+        "private key",
+    ]
+    .into_iter()
+    .filter(|marker| normalized.contains(marker))
+    .map(str::to_string)
+    .collect::<Vec<_>>();
+    let review_markers = [
+        "git push",
+        "git commit",
+        "npm install",
+        "cargo install",
+        "pip install",
+        "download",
+        "upload",
+        "token",
+        "secret",
+        "password",
+        "delete",
+        "move ",
+    ]
+    .into_iter()
+    .filter(|marker| normalized.contains(marker))
+    .map(str::to_string)
+    .collect::<Vec<_>>();
+
+    if !denied_markers.is_empty() {
+        return CommandSafetyPreview {
+            state: "blocked".to_string(),
+            risk_level: "critical".to_string(),
+            detail: "Agent input appears to request destructive, credential, or exfiltration-prone commands.".to_string(),
+            denied_markers,
+            review_markers,
+        };
+    }
+    if !review_markers.is_empty() {
+        return CommandSafetyPreview {
+            state: "review-required".to_string(),
+            risk_level: "high".to_string(),
+            detail:
+                "Agent input contains operations that require explicit review before execution."
+                    .to_string(),
+            denied_markers,
+            review_markers,
+        };
+    }
+    CommandSafetyPreview {
+        state: "pass".to_string(),
+        risk_level: "low".to_string(),
+        denied_markers,
+        review_markers,
+        detail: "No obvious dangerous command markers were detected in the Agent input."
+            .to_string(),
     }
 }
 
@@ -573,17 +804,67 @@ mod tests {
         let mut tool = tool();
         let mut run = run();
 
-        assert_eq!(readiness_state(&tool, &run), "blocked-not-detected");
+        let trust = RepositoryTrustPreview {
+            state: "pass".to_string(),
+            level: "known-clean-workspace".to_string(),
+            remote_scope: "local-only-or-unconfigured".to_string(),
+            remote_host: None,
+            detail: "test".to_string(),
+            gates: Vec::new(),
+        };
+        let safety = classify_agent_input("Summarize this repository");
+        assert_eq!(
+            readiness_state(&tool, &run, &trust, &safety),
+            "blocked-not-detected"
+        );
         tool.discovery_state = "detected".to_string();
-        assert_eq!(readiness_state(&tool, &run), "blocked-not-allowed");
+        assert_eq!(
+            readiness_state(&tool, &run, &trust, &safety),
+            "blocked-not-allowed"
+        );
         tool.allow_state = "allowed".to_string();
-        assert_eq!(readiness_state(&tool, &run), "blocked-run-not-approved");
+        assert_eq!(
+            readiness_state(&tool, &run, &trust, &safety),
+            "blocked-run-not-approved"
+        );
         run.lifecycle_state = "approved".to_string();
         run.approval_state = "approved".to_string();
         run.execution_state = "approved-not-started".to_string();
         assert_eq!(
-            readiness_state(&tool, &run),
+            readiness_state(&tool, &run, &trust, &safety),
             "ready-for-explicit-execution-approval"
+        );
+    }
+
+    #[test]
+    fn command_safety_blocks_destructive_or_secret_input() {
+        let safety = classify_agent_input("run git reset --hard and read .env");
+
+        assert_eq!(safety.state, "blocked");
+        assert!(safety
+            .denied_markers
+            .contains(&"git reset --hard".to_string()));
+        assert!(safety.denied_markers.contains(&".env".to_string()));
+    }
+
+    #[test]
+    fn command_safety_requires_review_for_push_or_install() {
+        let safety = classify_agent_input("prepare a git push after npm install");
+
+        assert_eq!(safety.state, "review-required");
+        assert!(safety.review_markers.contains(&"git push".to_string()));
+        assert!(safety.review_markers.contains(&"npm install".to_string()));
+    }
+
+    #[test]
+    fn remote_host_preview_redacts_credentials_and_paths() {
+        assert_eq!(
+            remote_host_preview("https://token@example.com/owner/repo.git"),
+            Some("example.com".to_string())
+        );
+        assert_eq!(
+            remote_host_preview("git@github.com:owner/repo.git"),
+            Some("github.com".to_string())
         );
     }
 
@@ -676,6 +957,15 @@ mod tests {
             executable_path: Some("codex.exe".to_string()),
             argument_preview: Vec::new(),
             context_references: Vec::new(),
+            repository_trust: RepositoryTrustPreview {
+                state: "pass".to_string(),
+                level: "known-clean-workspace".to_string(),
+                remote_scope: "local-only-or-unconfigured".to_string(),
+                remote_host: None,
+                detail: "test".to_string(),
+                gates: Vec::new(),
+            },
+            command_safety: classify_agent_input("Summarize this repository"),
             output_ingestion_policy: "quarantine-output".to_string(),
             gates: vec![
                 "workspace-boundary".to_string(),

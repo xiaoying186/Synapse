@@ -17,6 +17,8 @@ Status labels:
 | Taiheng | Protected snapshots, rollback, audit events, Saga recovery view | guarded | Local state recovery is available for supported objects |
 | Taiheng | Release preflight and production readiness | usable | Local Windows release gates are checked before release claims |
 | Taiheng | English / Simplified Chinese UI switching | usable | Core shell, language setting, and high-frequency readiness/home surfaces use synchronized translation keys |
+| Taiheng | Secret Guard source scan | usable | Read-only local scan for obvious tokens, key files, JWTs, private keys, and populated secret assignments; no automatic mutation |
+| Taiheng | Agent repository trust and command safety preview | guarded | Agent Harness dry-runs classify workspace trust, redacted remote-origin metadata, and risky command markers before any guarded execution |
 | Taiheng | Cross-domain atomic store/snapshot/audit transaction coverage | guarded | Implemented for current high-risk write paths; broad coverage remains iterative |
 | Zhishu | Manual memory, inspiration, experience, knowledge/rule/skill capture | usable | Durable local records with admission metadata |
 | Zhishu | Search, relation candidates, maintenance findings | usable | Local metadata-aware retrieval and reviewable relation/maintenance outputs |
@@ -25,7 +27,8 @@ Status labels:
 | Xingtai | Daily briefing | preview-only | Template and archive flow without live multi-source retrieval |
 | Xingtai | Real opportunity-to-execution automation | dry-run | Execution stays local and approval-gated |
 | Baigong | Arsenal tool registry and allowlist | usable | Registry and allow-state persistence without arbitrary tool invocation |
-| Baigong | Data source registry | preview-only | Lightweight governance registry; no credentials, no heavy data processing, no live fetch |
+| Baigong | Module manifest template | preview-only | Public-safe manifest guidance for capabilities, data sources, permissions, safety gates, and Zhishu admission policy |
+| Baigong | Data source registry | preview-only | Lightweight governance registry with disabled Project Radar descriptors; no credentials, no heavy data processing, no live fetch |
 | Baigong | Information aggregation | guarded | Fixture/manual/configured HTTP JSON source behind quarantine and review |
 | Baigong | Agent Harness and Agent teams | preview-only | Blueprint/dry-run boundaries; real process execution disabled by default |
 | Baigong | Browser automation | guarded | Read-only allowlisted inspection only |

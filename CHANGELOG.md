@@ -3,6 +3,28 @@
 Public software versions follow SemVer-style numbering.
 Internal design document versions are not public release numbers.
 
+## Unreleased
+
+### Added
+
+- Added repository collaboration baselines for Codex task tracking, Synapse
+  fusion tracking, public design notes, and branch/PR workflow guidance.
+- Added a read-only Secret Guard scanner and connected it to static preflight.
+- Added Agent Harness dry-run previews for repository trust and command safety
+  classification.
+- Added redacted remote-origin metadata to Agent Harness repository trust
+  previews.
+- Added disabled Project Radar source descriptors for GitHub Trending,
+  OSSInsight, and Hugging Face Trending inside the Data Source Registry preview.
+- Added a public Baigong module manifest template for future guarded tools,
+  Agents, automation adapters, and data-source connectors.
+
+### Changed
+
+- Expanded project agent rules to cover Synapse terminology, bilingual UI copy,
+  Git collaboration expectations, and public repository boundaries.
+- Repaired internal/private document ignore patterns that had become mojibake.
+
 ## 0.0.0 - Initial Public Baseline
 
 - Established Synapse as a local-first guarded desktop prototype.

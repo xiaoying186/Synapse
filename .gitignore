@@ -7,26 +7,51 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Build outputs
 dist
 dist-ssr
+build/
+out/
+release/
 target
 src-tauri/target
+*.zip
+*.msi
+*.exe
+*.dmg
+*.pkg
+*.apk
+
+# Local workspace state
 *.local
 .synapse/
 .codegraph/
 .tmp/
+tmp/
+temp/
 data/
+data/local/
+data/cache/
 logs/
 coverage/
 backtest_results/
 dataset/
+memory/local/
+backups/
+*.csv
+*.parquet
 *.sqlite
 *.sqlite3
 *.db
-*.zip
-*.msi
-*.exe
+
+# Env / secrets
 .env
 .env.*
 !.env.example
@@ -34,6 +59,10 @@ dataset/
 *.key
 *.pfx
 *.p12
+*.token
+secrets/
+config.local.*
+credentials.json
 
 # Internal / private planning documents
 internal/
@@ -52,14 +81,28 @@ design_private/
 *Codex*.md
 Synapse_Design_V*.md
 Synapse-Design-V*.md
+!TODO-CODEX.md
+!docs/codex/Codex_Workflow.md
+
+# Office / binary planning artifacts
+*.docx
+*.pptx
+*.xlsx
+*.pdf
+*.7z
+*.rar
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.example.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS
+.DS_Store
+Thumbs.db

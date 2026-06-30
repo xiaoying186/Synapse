@@ -40,6 +40,7 @@ The frontend dev server is started by the Tauri dev command.
 
 ```powershell
 npm.cmd run preflight:static
+npm.cmd run secret:scan
 npm.cmd run i18n:check
 npm.cmd run build
 npm.cmd run preflight

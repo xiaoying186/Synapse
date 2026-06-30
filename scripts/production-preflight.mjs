@@ -150,6 +150,17 @@ if (packageJson.scripts?.["release:doctor"] === "node scripts/release-doctor.mjs
     "Restore the release:doctor package script before publishing.",
   );
 }
+if (packageJson.scripts?.["secret:scan"] === "node scripts/secret-guard.mjs") {
+  pass("secret-guard-package-script", "secret:scan runs Secret Guard");
+} else {
+  fail(
+    "secret-guard-package-script",
+    `Expected secret:scan script to run node scripts/secret-guard.mjs, found ${
+      packageJson.scripts?.["secret:scan"] ?? "missing"
+    }`,
+    "Restore the secret:scan package script so local secret checks remain available.",
+  );
+}
 if (cargoDependencyVersion(cargoToml, "dependencies", "tauri") === "=2.10.3") {
   pass("tauri-rust-version", "Rust tauri crate pinned to =2.10.3");
 } else {
@@ -257,6 +268,7 @@ if (gitattributes) {
 }
 checkSensitiveFilesAbsent();
 checkHardcodedSecretsAbsent();
+checkSecretGuard();
 
 const releaseChecklist = readProtectedText(
   "docs/RELEASE_CHECKLIST.md",
@@ -289,6 +301,11 @@ const sourceRegistryDoc = readProtectedText(
   "docs/SOURCE_REGISTRY.md",
   "source-registry-doc-file",
   "Data Source Registry documentation",
+);
+readProtectedText(
+  "docs/BAIGONG_MODULE_MANIFEST.md",
+  "baigong-module-manifest-file",
+  "Baigong module manifest template",
 );
 const publicBaselineStatus = readProtectedText(
   "docs/PUBLIC_BASELINE_STATUS.md",
@@ -497,6 +514,7 @@ const storeRepository = readProtectedText(
   "Store repository",
 );
 const uiSmoke = readProtectedText("scripts/ui-smoke.mjs", "ui-smoke-file", "UI smoke script");
+const secretGuard = readProtectedText("scripts/secret-guard.mjs", "secret-guard-file", "Secret Guard script");
 const viteConfig = readProtectedText("vite.config.ts", "vite-config-file", "Vite config");
 const appShell = readProtectedText("src/App.tsx", "app-shell-file", "App shell");
 const alignmentMatrix = readProtectedText(
@@ -1752,6 +1770,38 @@ function checkHardcodedSecretsAbsent() {
       "Remove hardcoded credentials and use environment-only or OS-secure storage before publishing.",
     );
   }
+}
+
+function checkSecretGuard() {
+  const result = spawnSync(process.execPath, [join(root, "scripts", "secret-guard.mjs"), "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: "pipe",
+  });
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch {
+    fail(
+      "secret-guard-scan",
+      result.stderr.trim() || result.stdout.trim() || "Secret Guard did not return JSON.",
+      "Run npm.cmd run secret:scan and inspect the output.",
+    );
+    return;
+  }
+  if (result.status === 0 && report.state === "passed") {
+    pass("secret-guard-scan", "Secret Guard found no obvious local secrets");
+    return;
+  }
+  const summary = (report.findings ?? [])
+    .slice(0, 8)
+    .map((finding) => `${finding.severity}:${finding.rule}:${finding.path}`)
+    .join(" / ");
+  fail(
+    "secret-guard-scan",
+    `Secret Guard finding(s): ${summary || result.stderr.trim() || "unknown finding"}`,
+    "Remove or relocate secret material before committing, publishing, or packaging.",
+  );
 }
 
 function walkFiles(directory) {

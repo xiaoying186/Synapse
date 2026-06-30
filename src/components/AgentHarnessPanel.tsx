@@ -115,6 +115,36 @@ export function AgentHarnessPanel({
             detected: {receipt.discovery_state} / allowlist: {receipt.allow_state} / run:{" "}
             {receipt.task_approval_state}
           </p>
+          <div className="source-gate-list">
+            <article className="source-gate-item">
+              <div>
+                <span>Repository trust</span>
+                <strong>{receipt.repository_trust.level}</strong>
+              </div>
+              <b>{receipt.repository_trust.state}</b>
+              <em>
+                {receipt.repository_trust.remote_scope}
+                {receipt.repository_trust.remote_host
+                  ? ` / ${receipt.repository_trust.remote_host}`
+                  : ""}
+              </em>
+              <small>{receipt.repository_trust.detail}</small>
+            </article>
+            <article className="source-gate-item">
+              <div>
+                <span>Command safety</span>
+                <strong>{receipt.command_safety.risk_level}</strong>
+              </div>
+              <b>{receipt.command_safety.state}</b>
+              <small>{receipt.command_safety.detail}</small>
+              {receipt.command_safety.denied_markers.length > 0 && (
+                <em>Denied: {receipt.command_safety.denied_markers.join(", ")}</em>
+              )}
+              {receipt.command_safety.review_markers.length > 0 && (
+                <em>Review: {receipt.command_safety.review_markers.join(", ")}</em>
+              )}
+            </article>
+          </div>
           <code>{receipt.argument_preview.join(" ")}</code>
           <div className="policy-tiers">
             {receipt.gates.map((gate) => (

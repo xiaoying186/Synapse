@@ -20,12 +20,31 @@ It is not a data warehouse, scraper, crawler, or credential store.
   "network_profile": "default_proxy",
   "rate_limit": "normal",
   "storage_policy": "module_local",
-  "shared_config_allowed": true
+  "shared_config_allowed": true,
+  "status": "example-disabled",
+  "adapter_kind": "python-adapter-preview",
+  "health_check_policy": "on-demand-or-low-frequency",
+  "credential_policy": "no-credentials-in-registry",
+  "observation_policy": "manual-observation-only",
+  "freshness_policy": "review-before-enable",
+  "risk_level": "review-before-enable"
 }
 ```
 
 The bundled example is disabled and preview-only. Domain-specific adapters must
 live in their owning Baigong module rather than in the Synapse core.
+
+## Project Radar Preview Sources
+
+The public baseline also registers disabled preview descriptors for:
+
+- GitHub Trending project radar
+- OSSInsight project radar
+- Hugging Face Trending model radar
+
+These entries are read-only governance records. They do not fetch live data,
+start crawlers, store credentials, or admit observations into Zhishu without
+future quarantine and review gates.
 
 ## Guardrails
 

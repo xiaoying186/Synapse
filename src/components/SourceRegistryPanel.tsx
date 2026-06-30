@@ -47,10 +47,13 @@ export function SourceRegistryPanel({
                 <small>
                   {entry.type} / {entry.scope} / {entry.storage_policy}
                 </small>
+                <small>
+                  adapter: {entry.adapter_kind} / observation: {entry.observation_policy}
+                </small>
                 <em>
                   enabled: {entry.enabled ? "true" : "false"}; auth:{" "}
                   {entry.auth_required ? "required" : "none"}; health:{" "}
-                  {entry.health_check_policy}
+                  {entry.health_check_policy}; freshness: {entry.freshness_policy}
                 </em>
               </article>
             ))}

@@ -716,8 +716,11 @@ export type SourceRegistryEntry = {
   storage_policy: string;
   shared_config_allowed: boolean;
   status: string;
+  adapter_kind: string;
   health_check_policy: string;
   credential_policy: string;
+  observation_policy: string;
+  freshness_policy: string;
   risk_level: string;
 };
 
@@ -763,6 +766,23 @@ export type AgentContextReference = {
   excerpt: string;
 };
 
+export type RepositoryTrustPreview = {
+  state: string;
+  level: string;
+  remote_scope: string;
+  remote_host?: string | null;
+  detail: string;
+  gates: string[];
+};
+
+export type CommandSafetyPreview = {
+  state: string;
+  risk_level: string;
+  denied_markers: string[];
+  review_markers: string[];
+  detail: string;
+};
+
 export type AgentDryRunReceipt = {
   tool_id: string;
   tool_label: string;
@@ -775,6 +795,8 @@ export type AgentDryRunReceipt = {
   executable_path?: string | null;
   argument_preview: string[];
   context_references: AgentContextReference[];
+  repository_trust: RepositoryTrustPreview;
+  command_safety: CommandSafetyPreview;
   output_ingestion_policy: string;
   gates: string[];
   process_started: boolean;
