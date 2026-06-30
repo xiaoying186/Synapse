@@ -40,6 +40,7 @@ import { ZhishuCapturePanel } from "./components/ZhishuCapturePanel";
 import { ZhishuSearchPanel } from "./components/ZhishuSearchPanel";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { useActivityLog } from "./app/useActivityLog";
+import { usePreviewAdapters } from "./app/usePreviewAdapters";
 import { useProductionOverview } from "./app/useProductionOverview";
 import { useSourceRegistryPreview } from "./app/useSourceRegistryPreview";
 import { useI18n } from "./i18n";
@@ -68,9 +69,6 @@ import type {
   BrowserInspectionRequest,
   ComputerDiagnosticArchiveReceipt,
   ComputerDiagnosticReport,
-  WebAppShellPreview,
-  CodebaseMemoryPreview,
-  PermissionMemoryPreview,
   QuantArchiveReceipt,
   QuantResearchReport,
   StrategyConfig,
@@ -151,9 +149,6 @@ function App() {
     useState<DailyBriefingPreview | null>(null);
   const [computerDiagnosticReport, setComputerDiagnosticReport] =
     useState<ComputerDiagnosticReport | null>(null);
-  const [webAppShellPreview, setWebAppShellPreview] = useState<WebAppShellPreview | null>(null);
-  const [codebaseMemoryPreview, setCodebaseMemoryPreview] = useState<CodebaseMemoryPreview | null>(null);
-  const [permissionMemoryPreview, setPermissionMemoryPreview] = useState<PermissionMemoryPreview | null>(null);
   const [quantResearchReport, setQuantResearchReport] = useState<QuantResearchReport | null>(null);
   const [sourceObservationHistory, setSourceObservationHistory] = useState<SourceObservationRecord[]>([]);
   const [sourceHealthReport, setSourceHealthReport] = useState<SourceHealthReport | null>(null);
@@ -231,9 +226,6 @@ function App() {
   const [isArchivingDailyBriefing, setIsArchivingDailyBriefing] = useState(false);
   const [isPreviewingComputerDiagnostics, setIsPreviewingComputerDiagnostics] = useState(false);
   const [isArchivingComputerDiagnostics, setIsArchivingComputerDiagnostics] = useState(false);
-  const [isPreviewingWebAppShell, setIsPreviewingWebAppShell] = useState(false);
-  const [isPreviewingCodebaseMemory, setIsPreviewingCodebaseMemory] = useState(false);
-  const [isPreviewingPermissionMemory, setIsPreviewingPermissionMemory] = useState(false);
   const [isResearchingQuant, setIsResearchingQuant] = useState(false);
   const [isArchivingQuant, setIsArchivingQuant] = useState(false);
   const [isLoadingArsenal, setIsLoadingArsenal] = useState(false);
@@ -274,6 +266,17 @@ function App() {
   const [executingRunId, setExecutingRunId] = useState<string | null>(null);
   const [promotingSynthesisCandidateId, setPromotingSynthesisCandidateId] = useState<string | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
+  const {
+    codebaseMemoryPreview,
+    isPreviewingCodebaseMemory,
+    isPreviewingPermissionMemory,
+    isPreviewingWebAppShell,
+    permissionMemoryPreview,
+    previewCodebaseMemory,
+    previewPermissionMemory,
+    previewWebAppShell,
+    webAppShellPreview,
+  } = usePreviewAdapters({ setActivity });
   const {
     isRefreshingLibraryHome,
     isRefreshingProductionReadiness,
@@ -1468,45 +1471,6 @@ function App() {
       setActivity("Computer diagnostics could not be completed.");
     } finally {
       setIsPreviewingComputerDiagnostics(false);
-    }
-  }
-
-  async function previewWebAppShell() {
-    setIsPreviewingWebAppShell(true);
-    try {
-      const preview = await invoke<WebAppShellPreview>("preview_web_app_shell");
-      setWebAppShellPreview(preview);
-      setActivity(`Web App Shell preview: ${preview.state}.`);
-    } catch {
-      setActivity("Web App Shell preview could not be completed.");
-    } finally {
-      setIsPreviewingWebAppShell(false);
-    }
-  }
-
-  async function previewCodebaseMemory() {
-    setIsPreviewingCodebaseMemory(true);
-    try {
-      const preview = await invoke<CodebaseMemoryPreview>("preview_codebase_memory_adapter");
-      setCodebaseMemoryPreview(preview);
-      setActivity(`Codebase Memory preview: ${preview.state}.`);
-    } catch {
-      setActivity("Codebase Memory preview could not be completed.");
-    } finally {
-      setIsPreviewingCodebaseMemory(false);
-    }
-  }
-
-  async function previewPermissionMemory() {
-    setIsPreviewingPermissionMemory(true);
-    try {
-      const preview = await invoke<PermissionMemoryPreview>("preview_permission_memory");
-      setPermissionMemoryPreview(preview);
-      setActivity(`Permission Memory preview: ${preview.state}.`);
-    } catch {
-      setActivity("Permission Memory preview could not be completed.");
-    } finally {
-      setIsPreviewingPermissionMemory(false);
     }
   }
 

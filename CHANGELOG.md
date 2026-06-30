@@ -26,6 +26,8 @@ Internal design document versions are not public release numbers.
   `App.tsx` into a focused hook without changing UI behavior.
 - Extracted Data Source Registry preview state and refresh operation from
   `App.tsx` into a focused hook, and updated static preflight anchors.
+- Extracted Web App Shell, Codebase Memory, and Permission Memory preview state
+  and operations from `App.tsx` into a focused hook.
 
 ### Changed
 

@@ -57,7 +57,7 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
 - [ ] Continue reducing `src/App.tsx` by moving domain-specific state and
       invoke operations into focused hooks without changing behavior. Initial
       Production Overview and Data Source Registry preview hook extractions are
-      complete.
+      complete; preview adapter hook extraction is also complete.
 - [ ] Extend production readiness checks to report i18n coverage and release
       artifact freshness.
 
