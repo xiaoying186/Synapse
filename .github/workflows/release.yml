@@ -1,0 +1,155 @@
+name: Synapse Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Public release version, for example 0.0.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate version and tag
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}".Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$') {
+            throw "Invalid version '$version'. Use a SemVer-like value such as 0.0.1."
+          }
+
+          $tag = "v$version"
+          git ls-remote --exit-code origin "refs/tags/$tag" | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Tag $tag already exists. Refusing to overwrite an existing release tag."
+          }
+          if ($LASTEXITCODE -ne 2) {
+            throw "Could not check whether tag $tag exists."
+          }
+
+          "SYNAPSE_RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SYNAPSE_RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Secret Guard scan
+        run: npm.cmd run secret:scan
+
+      - name: Static public baseline preflight
+        run: npm.cmd run preflight:static
+
+      - name: I18n key sync
+        run: npm.cmd run i18n:check
+
+      - name: Build frontend
+        run: npm.cmd run build
+
+      - name: Synchronize release version in workspace
+        shell: pwsh
+        run: |
+          $version = $env:SYNAPSE_RELEASE_VERSION
+
+          $packagePath = "package.json"
+          $package = Get-Content $packagePath -Raw | ConvertFrom-Json
+          $package.version = $version
+          $package | ConvertTo-Json -Depth 100 | Set-Content $packagePath -Encoding UTF8
+
+          $tauriPath = "src-tauri/tauri.conf.json"
+          $tauri = Get-Content $tauriPath -Raw | ConvertFrom-Json
+          $tauri.version = $version
+          $tauri | ConvertTo-Json -Depth 100 | Set-Content $tauriPath -Encoding UTF8
+
+          $cargoPath = "src-tauri/Cargo.toml"
+          $cargo = Get-Content $cargoPath -Raw
+          $cargo = $cargo -replace '(?m)^version\s*=\s*".*"$', "version = `"$version`""
+          $cargo = $cargo -replace '(?m)^description\s*=\s*".*"$', "description = `"Synapse $version - Local-first public release aligned with internal Design V6.6`""
+          Set-Content $cargoPath $cargo -Encoding UTF8
+
+      - name: Build Tauri installer
+        run: npm.cmd run tauri:build
+
+      - name: Collect installers and SHA-256 files
+        id: artifacts
+        shell: pwsh
+        run: |
+          $bundleRoot = "src-tauri/target/release/bundle"
+          if (!(Test-Path $bundleRoot)) {
+            throw "Tauri bundle directory was not found: $bundleRoot"
+          }
+
+          $installers = Get-ChildItem $bundleRoot -Recurse -File |
+            Where-Object {
+              $_.Extension -in @(".msi", ".exe") -or
+              $_.FullName -match "\\nsis\\"
+            } |
+            Sort-Object FullName
+
+          if ($installers.Count -eq 0) {
+            throw "No Windows installer artifacts were found under $bundleRoot."
+          }
+
+          $uploadArgs = @()
+          foreach ($installer in $installers) {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+            $shaPath = "$($installer.FullName).sha256"
+            "$hash  $($installer.Name)" | Set-Content -LiteralPath $shaPath -Encoding ascii
+            $uploadArgs += $installer.FullName
+            $uploadArgs += $shaPath
+          }
+
+          $uploadFile = Join-Path $env:RUNNER_TEMP "release-upload-files.txt"
+          $uploadArgs | Set-Content -LiteralPath $uploadFile -Encoding utf8
+          "upload_file=$uploadFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Create release notes
+        shell: pwsh
+        run: |
+          @(
+            "Synapse $env:SYNAPSE_RELEASE_VERSION manual release."
+            ""
+            "This release was created by the guarded manual release workflow."
+            ""
+            "Validation completed before packaging:"
+            "- npm ci"
+            "- npm.cmd run secret:scan"
+            "- npm.cmd run preflight:static"
+            "- npm.cmd run i18n:check"
+            "- npm.cmd run build"
+            "- npm.cmd run tauri:build"
+            ""
+            "Installers include adjacent SHA-256 checksum files."
+          ) | Set-Content -LiteralPath "$env:RUNNER_TEMP/release-notes.md" -Encoding utf8
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $uploadFiles = Get-Content -LiteralPath "${{ steps.artifacts.outputs.upload_file }}"
+          gh release create $env:SYNAPSE_RELEASE_TAG `
+            --title "Synapse v$env:SYNAPSE_RELEASE_VERSION" `
+            --notes-file "$env:RUNNER_TEMP/release-notes.md" `
+            --target "$env:GITHUB_SHA" `
+            @uploadFiles

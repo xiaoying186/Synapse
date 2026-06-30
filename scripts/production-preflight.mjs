@@ -372,6 +372,11 @@ const githubWorkflow = readProtectedText(
   "github-public-baseline-workflow-file",
   "GitHub Actions public baseline workflow",
 );
+const releaseWorkflow = readProtectedText(
+  ".github/workflows/release.yml",
+  "github-release-workflow-file",
+  "GitHub Actions manual release workflow",
+);
 const gitBootstrap = readProtectedText(
   "scripts/git-bootstrap.mjs",
   "git-bootstrap-script",
@@ -879,6 +884,47 @@ if (githubWorkflow) {
       "github-public-baseline-workflow",
       `Missing workflow item(s): ${missingWorkflowItems.join(" / ")}`,
       "Restore .github/workflows/public-baseline.yml before publishing to GitHub.",
+    );
+  }
+}
+const requiredReleaseWorkflowItems = [
+  "Synapse Manual Release",
+  "workflow_dispatch:",
+  "version:",
+  "contents: write",
+  "git ls-remote --exit-code origin",
+  "Tag $tag already exists",
+  "npm.cmd run secret:scan",
+  "npm.cmd run preflight:static",
+  "npm.cmd run i18n:check",
+  "npm.cmd run build",
+  "npm.cmd run tauri:build",
+  "Get-FileHash -Algorithm SHA256",
+  "gh release create",
+];
+if (releaseWorkflow) {
+  const missingReleaseWorkflowItems = requiredReleaseWorkflowItems.filter(
+    (item) => !releaseWorkflow.includes(item),
+  );
+  const forbiddenReleaseWorkflowItems = ["branches: [main]", "push:"].filter((item) =>
+    releaseWorkflow.includes(item),
+  );
+  if (missingReleaseWorkflowItems.length === 0 && forbiddenReleaseWorkflowItems.length === 0) {
+    pass("github-manual-release-workflow", "Manual release workflow is guarded and explicitly triggered");
+  } else {
+    fail(
+      "github-manual-release-workflow",
+      [
+        missingReleaseWorkflowItems.length > 0
+          ? `missing item(s): ${missingReleaseWorkflowItems.join(" / ")}`
+          : null,
+        forbiddenReleaseWorkflowItems.length > 0
+          ? `forbidden automatic trigger item(s): ${forbiddenReleaseWorkflowItems.join(" / ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("; "),
+      "Restore .github/workflows/release.yml as a workflow_dispatch-only guarded release workflow.",
     );
   }
 }

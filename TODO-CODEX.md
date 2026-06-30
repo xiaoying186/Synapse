@@ -18,7 +18,7 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
       `AGENTS.md`, `TODO-CODEX.md`, `TODO-SYNAPSE-FUSION.md`,
       `docs/codex/`, `docs/design/`, `.gitignore`, and `CHANGELOG.md`.
 - [ ] Prepare a `0.0.1` release plan for the bilingual UI installer after the
-      branch state is clean.
+      branch state is clean. A guarded manual release workflow now exists.
 
 ## P0 - Taiheng Safety Execution Layer
 

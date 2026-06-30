@@ -28,6 +28,8 @@ Internal design document versions are not public release numbers.
   `App.tsx` into a focused hook, and updated static preflight anchors.
 - Extracted Web App Shell, Codebase Memory, and Permission Memory preview state
   and operations from `App.tsx` into a focused hook.
+- Added a guarded manual GitHub release workflow for versioned Windows
+  installer releases with SHA-256 files.
 
 ### Changed
 
