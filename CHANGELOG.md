@@ -24,6 +24,8 @@ Internal design document versions are not public release numbers.
   including persisted language mode and `document.documentElement.lang`.
 - Extracted Production Overview preview state and refresh operations from
   `App.tsx` into a focused hook without changing UI behavior.
+- Extracted Data Source Registry preview state and refresh operation from
+  `App.tsx` into a focused hook, and updated static preflight anchors.
 
 ### Changed
 

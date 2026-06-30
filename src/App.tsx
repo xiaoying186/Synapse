@@ -41,6 +41,7 @@ import { ZhishuSearchPanel } from "./components/ZhishuSearchPanel";
 import { LanguageSelector } from "./components/LanguageSelector";
 import { useActivityLog } from "./app/useActivityLog";
 import { useProductionOverview } from "./app/useProductionOverview";
+import { useSourceRegistryPreview } from "./app/useSourceRegistryPreview";
 import { useI18n } from "./i18n";
 import type {
   AdapterExecutionReceipt,
@@ -94,7 +95,6 @@ import type {
   SnapshotRecord,
   SourceHealthReport,
   SourceObservationRecord,
-  SourceRegistryPreview,
   SourceImportReceipt,
   SystemStatus,
   TaskCandidate,
@@ -157,8 +157,6 @@ function App() {
   const [quantResearchReport, setQuantResearchReport] = useState<QuantResearchReport | null>(null);
   const [sourceObservationHistory, setSourceObservationHistory] = useState<SourceObservationRecord[]>([]);
   const [sourceHealthReport, setSourceHealthReport] = useState<SourceHealthReport | null>(null);
-  const [sourceRegistryPreview, setSourceRegistryPreview] =
-    useState<SourceRegistryPreview | null>(null);
   const [sourceImportFormat, setSourceImportFormat] = useState("json");
   const [sourceImportContent, setSourceImportContent] = useState("");
   const [sourceImportReceipt, setSourceImportReceipt] = useState<SourceImportReceipt | null>(null);
@@ -257,7 +255,6 @@ function App() {
   const [isImportingSources, setIsImportingSources] = useState(false);
   const [isFetchingHttpSource, setIsFetchingHttpSource] = useState(false);
   const [isLoadingSourceHealth, setIsLoadingSourceHealth] = useState(false);
-  const [isLoadingSourceRegistry, setIsLoadingSourceRegistry] = useState(false);
   const [updatingToolId, setUpdatingToolId] = useState<string | null>(null);
   const [isLoadingSynthesis, setIsLoadingSynthesis] = useState(false);
   const [isTickingScheduler, setIsTickingScheduler] = useState(false);
@@ -291,6 +288,11 @@ function App() {
     refreshProductionOverview,
     sagaRecoveryPreview,
   } = useProductionOverview({ loadAuditEvents, setActivity });
+  const {
+    isLoadingSourceRegistry,
+    loadSourceRegistryPreview,
+    sourceRegistryPreview,
+  } = useSourceRegistryPreview();
 
   useEffect(() => {
     invoke<SystemStatus>("get_system_status")
@@ -1098,21 +1100,6 @@ function App() {
       return null;
     } finally {
       setIsLoadingArsenal(false);
-    }
-  }
-
-  async function loadSourceRegistryPreview() {
-    setIsLoadingSourceRegistry(true);
-
-    try {
-      const preview = await invoke<SourceRegistryPreview>("preview_source_registry");
-      setSourceRegistryPreview(preview);
-      return preview;
-    } catch {
-      setSourceRegistryPreview(null);
-      return null;
-    } finally {
-      setIsLoadingSourceRegistry(false);
     }
   }
 

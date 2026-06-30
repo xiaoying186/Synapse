@@ -56,7 +56,8 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
 - [x] Add focused UI smoke coverage for language switching.
 - [ ] Continue reducing `src/App.tsx` by moving domain-specific state and
       invoke operations into focused hooks without changing behavior. Initial
-      Production Overview hook extraction is complete.
+      Production Overview and Data Source Registry preview hook extractions are
+      complete.
 - [ ] Extend production readiness checks to report i18n coverage and release
       artifact freshness.
 

@@ -477,6 +477,11 @@ const sourceRegistryPanel = readProtectedText(
   "source-registry-panel-file",
   "Data Source Registry panel",
 );
+const sourceRegistryHook = readProtectedText(
+  "src/app/useSourceRegistryPreview.ts",
+  "source-registry-hook-file",
+  "Data Source Registry preview hook",
+);
 const deviceSync = readProtectedText(
   "src-tauri/src/domains/device_sync.rs",
   "device-sync-file",
@@ -1258,7 +1263,7 @@ if (systemService) {
     );
   }
 }
-if (sourceRegistry && sourceRegistryPanel && appShell) {
+if (sourceRegistry && sourceRegistryPanel && appShell && sourceRegistryHook) {
   const requiredSourceRegistryItems = [
     "SourceRegistryPreview",
     "SourceRegistryEntry",
@@ -1284,16 +1289,24 @@ if (sourceRegistry && sourceRegistryPanel && appShell) {
   );
   const requiredSourceRegistryAppItems = [
     "SourceRegistryPanel",
-    "preview_source_registry",
     "sourceRegistryPreview",
   ];
   const missingSourceRegistryAppItems = requiredSourceRegistryAppItems.filter(
     (item) => !appShell.includes(item),
   );
+  const requiredSourceRegistryHookItems = [
+    "preview_source_registry",
+    "sourceRegistryPreview",
+    "setIsLoadingSourceRegistry",
+  ];
+  const missingSourceRegistryHookItems = requiredSourceRegistryHookItems.filter(
+    (item) => !sourceRegistryHook.includes(item),
+  );
   const missingSourceRegistryAll = [
     ...missingSourceRegistryItems,
     ...missingSourceRegistryPanelItems,
     ...missingSourceRegistryAppItems,
+    ...missingSourceRegistryHookItems,
   ];
   if (missingSourceRegistryAll.length === 0) {
     pass("source-registry-preview-only", "Data Source Registry remains lightweight governance preview only");
