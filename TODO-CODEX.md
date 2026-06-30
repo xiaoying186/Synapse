@@ -53,7 +53,7 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
 - [ ] Expand i18n coverage from the shell and high-frequency panels to all
       user-facing feature panels, keeping English and Simplified Chinese keys
       synchronized with `npm.cmd run i18n:check`.
-- [ ] Add focused UI smoke coverage for language switching.
+- [x] Add focused UI smoke coverage for language switching.
 - [ ] Continue reducing `src/App.tsx` by moving domain-specific state and
       invoke operations into focused hooks without changing behavior.
 - [ ] Extend production readiness checks to report i18n coverage and release

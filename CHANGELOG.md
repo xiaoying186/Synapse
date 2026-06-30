@@ -20,6 +20,8 @@ Internal design document versions are not public release numbers.
   Agents, automation adapters, and data-source connectors.
 - Surfaced Secret Guard and Agent repository trust in Production Readiness and
   Security Center capability evidence.
+- Added UI smoke coverage for English/Simplified Chinese language switching,
+  including persisted language mode and `document.documentElement.lang`.
 
 ### Changed
 

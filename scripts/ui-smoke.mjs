@@ -22,6 +22,8 @@ const sourceChecks = [
   ["src/App.tsx", "PermissionMemoryPanel"],
   ["src/components/PermissionMemoryPanel.tsx", "Permission Memory"],
   ["src/components/SourceRegistryPanel.tsx", "Data Source Registry"],
+  ["src/components/LanguageSelector.tsx", "language-selector"],
+  ["src/i18n/I18nProvider.tsx", "document.documentElement.lang"],
   ["src/App.css", ".shell"],
   ["src/App.css", ".workspace"],
 ];
@@ -123,10 +125,17 @@ with sync_playwright() as p:
     try:
         for name, width, height in (("desktop", 1440, 1100), ("mobile", 390, 920)):
             page = browser.new_page(viewport={"width": width, "height": height})
+            page.add_init_script("window.localStorage.setItem('synapse.language', 'en')")
             page.goto("http://127.0.0.1:1420/", wait_until="networkidle")
             page.get_by_role("heading", name="Cognitive execution workbench").wait_for(timeout=10000)
             page.get_by_text("Library home").first.wait_for(timeout=10000)
             page.get_by_text("Production readiness").first.wait_for(timeout=10000)
+            page.locator(".language-selector select").select_option("zh-CN")
+            page.wait_for_function("document.documentElement.lang === 'zh-CN'")
+            assert page.evaluate("window.localStorage.getItem('synapse.language')") == "zh-CN"
+            page.locator(".language-selector select").select_option("en")
+            page.wait_for_function("document.documentElement.lang === 'en'")
+            assert page.evaluate("window.localStorage.getItem('synapse.language')") == "en"
             page.screenshot(path=str(out / f"{name}.png"), full_page=True)
             page.close()
     finally:
@@ -188,10 +197,25 @@ function firstLine(value) {
 
 async function smokeViewport(browser, name, width, height) {
   const page = await browser.newPage({ viewport: { width, height } });
+  await page.addInitScript(() => {
+    window.localStorage.setItem("synapse.language", "en");
+  });
   await page.goto("http://127.0.0.1:1420/", { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: /Synapse|Cognitive execution workbench/i }).first().waitFor();
   await page.getByText("Library home").first().waitFor();
   await page.getByText("Production readiness").first().waitFor();
+  await page.locator(".language-selector select").selectOption("zh-CN");
+  await page.waitForFunction(() => document.documentElement.lang === "zh-CN");
+  const zhMode = await page.evaluate(() => window.localStorage.getItem("synapse.language"));
+  if (zhMode !== "zh-CN") {
+    throw new Error(`Language selector did not persist zh-CN, found ${zhMode ?? "null"}`);
+  }
+  await page.locator(".language-selector select").selectOption("en");
+  await page.waitForFunction(() => document.documentElement.lang === "en");
+  const enMode = await page.evaluate(() => window.localStorage.getItem("synapse.language"));
+  if (enMode !== "en") {
+    throw new Error(`Language selector did not persist en, found ${enMode ?? "null"}`);
+  }
   await page.screenshot({
     fullPage: true,
     path: path.join(screenshotDir, `${name}.png`),
