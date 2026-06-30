@@ -5,8 +5,8 @@ Public stage: `Initial Public Baseline`
 Internal design alignment: `Synapse Design V6.6`
 
 Synapse `0.0.0` is an early local-first desktop baseline. It is suitable for
-guarded local preview, development, and review of the project boundaries. It is
-not a stable production automation release.
+guarded local desktop use, development, and review of the project boundaries. It
+is not a stable production automation release.
 
 ## Verified Public Baseline
 
@@ -36,12 +36,14 @@ not a stable production automation release.
   deletion.
 - Automatic durable L2 knowledge admission without explicit review.
 - Cloud synchronization as a source of truth.
-- Public release signing or a verified installer distribution channel.
+- Signed release artifacts.
 
 ## Release State
 
-- Windows MSI packaging is supported by the checked-in Tauri configuration, but
-  release artifacts must be rebuilt after version or bundle metadata changes.
+- Windows MSI packaging is supported by the checked-in Tauri configuration.
+  Release artifacts must be rebuilt after version or bundle metadata changes.
+- GitHub Releases may distribute `Synapse_0.0.0_x64_en-US.msi` only with a
+  matching SHA-256 sidecar and guarded baseline release notes.
 - Debug MSI artifacts must not be distributed as official releases.
 - A public GitHub release should wait until `LICENSE`, `SECURITY.md`,
   `VERSIONING.md`, `docs/CAPABILITY_MATRIX.md`,

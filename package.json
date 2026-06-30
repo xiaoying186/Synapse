@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "release:doctor": "node scripts/release-doctor.mjs",
     "release:evidence": "node scripts/release-evidence.mjs",
+    "release:sha256": "node scripts/release-sha256.mjs",
     "release:status": "node scripts/release-status.mjs",
     "smoke:ui": "node scripts/ui-smoke.mjs",
     "tauri": "tauri",

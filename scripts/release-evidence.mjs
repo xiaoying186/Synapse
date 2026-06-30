@@ -328,9 +328,9 @@ function renderReleaseSummary(evidence) {
   const nextActionLines =
     releaseFailures.length === 0
       ? [
-          "- Build the release MSI on the release machine.",
-          "- Sign and timestamp the MSI outside the repository.",
-          "- Publish the SHA-256 hash with the release notes.",
+          "- Sign and timestamp the MSI outside the repository when a signing certificate is available.",
+          "- Publish the MSI with its SHA-256 sidecar and guarded baseline release notes.",
+          "- Keep generated evidence, signing details, and reviewer notes outside the public repository unless intentionally published.",
         ]
       : releaseFailures.map((blocker) => `- ${blocker.remediation ?? `Resolve ${blocker.id}.`}`);
   const artifactLines = [

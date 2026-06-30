@@ -92,6 +92,14 @@ Get-FileHash .\path\to\Synapse_*.msi -Algorithm SHA256
 Keep the SHA-256 hash next to the release notes. For GitHub Releases, include
 the hash in the release body so the downloaded MSI can be verified.
 
+The repository includes a helper for the current public MSI:
+
+```powershell
+npm.cmd run release:sha256
+```
+
+This writes `Synapse_0.0.0_x64_en-US.msi.sha256` next to the MSI.
+
 You can also generate a local release evidence bundle:
 
 ```powershell

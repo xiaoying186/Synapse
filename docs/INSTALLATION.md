@@ -1,7 +1,24 @@
 # Installation
 
-Synapse `0.0.0` is an early public baseline. It is currently best used by
-developers from source.
+Synapse `0.0.0` is an early public baseline. Windows users can install the
+guarded local desktop build from GitHub Releases when a `Synapse_0.0.0_*.msi`
+asset is attached. Developers can also run it from source.
+
+## From GitHub Releases
+
+1. Open the repository's GitHub Releases page.
+2. Download `Synapse_0.0.0_x64_en-US.msi` and the matching `.sha256` file.
+3. Verify the MSI hash before installing:
+
+```powershell
+Get-FileHash .\Synapse_0.0.0_x64_en-US.msi -Algorithm SHA256
+Get-Content .\Synapse_0.0.0_x64_en-US.msi.sha256
+```
+
+The two SHA-256 values must match.
+
+The initial public baseline installer is unsigned unless the release notes say
+otherwise. Windows may show an unknown-publisher warning for unsigned builds.
 
 ## From Source
 
@@ -14,8 +31,7 @@ npm.cmd run tauri:dev
 
 ## Installer Status
 
-Windows MSI packaging is configured, but a public installer should only be
-distributed after:
+Windows MSI packaging is configured and should only be distributed after:
 
 - `npm.cmd run preflight:release` passes;
 - `npm.cmd run tauri:build` creates an MSI matching the current public version;
