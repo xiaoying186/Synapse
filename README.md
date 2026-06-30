@@ -122,7 +122,7 @@ distribution happens through GitHub Releases and desktop installers.
 
 ## Release Status
 
-The repository includes release evidence tooling:
+The repository includes local release evidence tooling:
 
 ```powershell
 npm.cmd run preflight:release
@@ -131,5 +131,13 @@ npm.cmd run release:status -- --json
 npm.cmd run release:doctor -- --json
 ```
 
-The `v0.0.0` GitHub Release publishes a Windows MSI and matching SHA-256
-sidecar. Debug MSI artifacts must not be distributed as official releases.
+Maintainers can publish a versioned Windows installer with the manual
+`Synapse Manual Release` GitHub Actions workflow. Trigger it from the Actions
+tab, enter a SemVer-style version such as `0.0.1`, and verify that it creates a
+`v{version}` release with installer assets and matching `.sha256` files.
+
+The checked-in source remains on the `0.0.0` public baseline unless a separate
+version-bump commit is intentionally made. The manual release workflow
+temporarily synchronizes `package.json`, `src-tauri/tauri.conf.json`, and
+`src-tauri/Cargo.toml` in the runner workspace before packaging. Debug MSI
+artifacts must not be distributed as official releases.

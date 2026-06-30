@@ -1,18 +1,19 @@
 # Installation
 
-Synapse `0.0.0` is an early public baseline. Windows users can install the
-guarded local desktop build from GitHub Releases when a `Synapse_0.0.0_*.msi`
-asset is attached. Developers can also run it from source.
+Synapse `0.0.0` is an early public baseline. Windows users can install guarded
+local desktop builds from GitHub Releases when a Windows installer asset and a
+matching `.sha256` file are attached. Developers can also run it from source.
 
 ## From GitHub Releases
 
 1. Open the repository's GitHub Releases page.
-2. Download `Synapse_0.0.0_x64_en-US.msi` and the matching `.sha256` file.
+2. Download the Windows installer, such as `Synapse_*_x64_en-US.msi`, and the
+   matching `.sha256` file.
 3. Verify the MSI hash before installing:
 
 ```powershell
-Get-FileHash .\Synapse_0.0.0_x64_en-US.msi -Algorithm SHA256
-Get-Content .\Synapse_0.0.0_x64_en-US.msi.sha256
+Get-FileHash .\Synapse_*_x64_en-US.msi -Algorithm SHA256
+Get-Content .\Synapse_*_x64_en-US.msi.sha256
 ```
 
 The two SHA-256 values must match.
@@ -37,6 +38,11 @@ Windows MSI packaging is configured and should only be distributed after:
 - `npm.cmd run tauri:build` creates an MSI matching the current public version;
 - `npm.cmd run release:evidence` records the MSI and SHA-256 hash;
 - release notes clearly state whether the installer is signed or unsigned.
+
+Maintainers can use the manual `Synapse Manual Release` GitHub Actions workflow
+to package and publish a versioned installer. The workflow is not triggered by
+ordinary pushes to `main`; it requires a manual `workflow_dispatch` version
+input and refuses to overwrite an existing tag.
 
 Debug MSI artifacts are packaging rehearsals and must not be distributed as
 official releases.

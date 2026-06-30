@@ -160,6 +160,35 @@ Before publishing a GitHub snapshot or release:
 - Internal Design V6.6 documents are included only if they are intended to be public.
 - Release notes clearly say this is a guarded local-first baseline.
 
+## Manual GitHub Release Workflow
+
+Maintainers can publish a versioned Windows installer with the
+`Synapse Manual Release` workflow in GitHub Actions.
+
+Use it only after the public baseline CI is green:
+
+1. Open GitHub Actions.
+2. Select `Synapse Manual Release`.
+3. Choose `Run workflow`.
+4. Enter a SemVer-style version such as `0.0.1`.
+5. Confirm that the workflow creates tag `v{version}` and release title
+   `Synapse v{version}`.
+6. Verify that every uploaded installer has a matching `.sha256` file.
+
+The workflow intentionally uses `workflow_dispatch` only. It does not run on
+ordinary pushes to `main`, and it refuses to continue when the release tag
+already exists.
+
+The checked-in source can remain on the `0.0.0` public baseline. During the
+manual release job, the runner workspace temporarily synchronizes these files
+to the requested version before packaging:
+
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+
+Those temporary version changes are not committed by the workflow.
+
 ## Do Not Claim In This Baseline
 
 - Direct CLI Agent execution as a general production feature.
