@@ -97,6 +97,11 @@ fn capability_statuses(
             "Baigong/Taiheng source registration metadata is visible without credentials, heavy data processing, background polling, or live fetch execution.",
         ),
         capability(
+            "secret-guard",
+            "guarded",
+            "Read-only local secret scanning is available through npm.cmd run secret:scan and static preflight before release or Agent admission.",
+        ),
+        capability(
             "context-budget",
             "preview-only",
             "Context packages can be budgeted locally while preserving evidence references and quarantining untrusted sources.",
@@ -125,6 +130,11 @@ fn capability_statuses(
             "agent-harness",
             agent_state,
             agent_detail,
+        ),
+        capability(
+            "agent-repository-trust",
+            "preview-only",
+            "Agent Harness previews Git workspace trust, dirty state, and redacted remote-origin metadata before guarded execution approval.",
         ),
         capability(
             "browser-automation",
@@ -308,5 +318,17 @@ mod tests {
 
         assert_eq!(agent_harness.state, "disabled");
         assert!(agent_harness.detail.contains("disabled by default"));
+    }
+
+    #[test]
+    fn status_surfaces_secret_guard_and_repository_trust() {
+        let status = status_from_config(config::RuntimeConfig::default());
+
+        assert!(status.capabilities.iter().any(|capability| {
+            capability.name == "secret-guard" && capability.state == "guarded"
+        }));
+        assert!(status.capabilities.iter().any(|capability| {
+            capability.name == "agent-repository-trust" && capability.state == "preview-only"
+        }));
     }
 }

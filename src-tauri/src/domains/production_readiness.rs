@@ -1,6 +1,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
     time::SystemTime,
 };
 
@@ -43,6 +44,20 @@ fn preview_from(
 fn preview_from_with_release_checks(
     runtime: config::RuntimeConfig,
     library: library_home::LibraryHomePreview,
+    release_checks: Vec<ReadinessCheck>,
+) -> ProductionReadinessPreview {
+    preview_from_with_checks(
+        runtime,
+        library,
+        local_safety_checks(&project_root()),
+        release_checks,
+    )
+}
+
+fn preview_from_with_checks(
+    runtime: config::RuntimeConfig,
+    library: library_home::LibraryHomePreview,
+    local_safety_checks: Vec<ReadinessCheck>,
     release_checks: Vec<ReadinessCheck>,
 ) -> ProductionReadinessPreview {
     let mut checks = vec![
@@ -295,6 +310,7 @@ fn preview_from_with_release_checks(
         ),
     ];
 
+    checks.extend(local_safety_checks);
     checks.push(check(
         "library-home",
         "Library Home",
@@ -329,6 +345,8 @@ fn preview_from_with_release_checks(
             "web-app-shell-manual-isolated-preview".to_string(),
             "codebase-memory-readonly-structural-preview".to_string(),
             "permission-memory-candidate-only-no-auto-grant".to_string(),
+            "secret-guard-before-agent-or-release".to_string(),
+            "agent-repository-trust-preview".to_string(),
             "http-source-json-only-quarantine".to_string(),
             "source-registry-lightweight-governance-preview".to_string(),
             "source-registry-no-credential-or-heavy-fetch".to_string(),
@@ -344,6 +362,13 @@ fn preview_from_with_release_checks(
     }
 }
 
+fn local_safety_checks(project_root: &Path) -> Vec<ReadinessCheck> {
+    vec![
+        secret_guard_check(project_root),
+        agent_repository_trust_check(project_root),
+    ]
+}
+
 fn readiness_state(checks: &[ReadinessCheck]) -> &'static str {
     if checks.iter().any(|check| check.state == "blocked") {
         "blocked"
@@ -355,6 +380,149 @@ fn readiness_state(checks: &[ReadinessCheck]) -> &'static str {
         "local-review-required"
     } else {
         "ready-local"
+    }
+}
+
+fn secret_guard_check(project_root: &Path) -> ReadinessCheck {
+    let script_path = project_root.join("scripts").join("secret-guard.mjs");
+    let package_path = project_root.join("package.json");
+    if !script_path.exists() {
+        return check_with_remediation(
+            "secret-guard-preview",
+            "Secret Guard",
+            "review-required",
+            "warning",
+            "Secret Guard script is not present; local secret scanning cannot be surfaced."
+                .to_string(),
+            "Restore scripts/secret-guard.mjs and run npm.cmd run preflight:static.".to_string(),
+        );
+    }
+    let Ok(package_json) = fs::read_to_string(package_path) else {
+        return check_with_remediation(
+            "secret-guard-preview",
+            "Secret Guard",
+            "review-required",
+            "warning",
+            "package.json could not be read, so the secret:scan script cannot be confirmed."
+                .to_string(),
+            "Restore package.json and ensure scripts.secret:scan runs node scripts/secret-guard.mjs."
+                .to_string(),
+        );
+    };
+    if !package_json.contains("\"secret:scan\"") || !package_json.contains("secret-guard.mjs") {
+        return check_with_remediation(
+            "secret-guard-preview",
+            "Secret Guard",
+            "review-required",
+            "warning",
+            "Secret Guard script exists but package.json does not expose npm.cmd run secret:scan."
+                .to_string(),
+            "Add the secret:scan package script before production or release claims.".to_string(),
+        );
+    }
+    check(
+        "secret-guard-preview",
+        "Secret Guard",
+        "pass",
+        "info",
+        "Secret Guard is available as a read-only local scan and is included in static preflight."
+            .to_string(),
+    )
+}
+
+fn agent_repository_trust_check(project_root: &Path) -> ReadinessCheck {
+    if !project_root.join(".git").exists() {
+        return check_with_remediation(
+            "agent-repository-trust",
+            "Agent repository trust",
+            "blocked",
+            "critical",
+            ".git is missing; Agent execution cannot trust repository boundaries.".to_string(),
+            "Initialize or restore Git metadata before using guarded Agent execution.".to_string(),
+        );
+    }
+    let dirty_state = git_dirty_state(project_root).unwrap_or_else(|| "unknown".to_string());
+    let remote_detail = git_remote_origin_host(project_root)
+        .map(|host| format!("remote origin host: {host}"))
+        .unwrap_or_else(|| "remote origin is not configured".to_string());
+    match dirty_state.as_str() {
+        "clean" => check(
+            "agent-repository-trust",
+            "Agent repository trust",
+            "pass",
+            "info",
+            format!("Git metadata is present and workspace is clean; {remote_detail}."),
+        ),
+        "dirty" => check_with_remediation(
+            "agent-repository-trust",
+            "Agent repository trust",
+            "review-required",
+            "warning",
+            format!("Git metadata is present but workspace has local modifications; {remote_detail}."),
+            "Review or commit local changes before approving guarded Agent execution.".to_string(),
+        ),
+        _ => check_with_remediation(
+            "agent-repository-trust",
+            "Agent repository trust",
+            "review-required",
+            "warning",
+            format!("Git metadata is present but workspace cleanliness could not be verified; {remote_detail}."),
+            "Run git status locally before approving guarded Agent execution.".to_string(),
+        ),
+    }
+}
+
+fn git_dirty_state(project_root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(project_root)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    if output.stdout.is_empty() {
+        Some("clean".to_string())
+    } else {
+        Some("dirty".to_string())
+    }
+}
+
+fn git_remote_origin_host(project_root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .args(["config", "--get", "remote.origin.url"])
+        .current_dir(project_root)
+        .output()
+        .ok()?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return None;
+    }
+    remote_host_preview(String::from_utf8_lossy(&output.stdout).trim())
+}
+
+fn remote_host_preview(remote_url: &str) -> Option<String> {
+    let trimmed = remote_url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .or_else(|| trimmed.strip_prefix("ssh://"))
+        .unwrap_or(trimmed);
+    let without_credentials = without_scheme
+        .rsplit_once('@')
+        .map(|(_, host)| host)
+        .unwrap_or(without_scheme);
+    let host = without_credentials
+        .split(['/', ':'])
+        .next()
+        .unwrap_or("")
+        .trim();
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_ascii_lowercase())
     }
 }
 
@@ -770,12 +938,35 @@ mod tests {
         ]
     }
 
+    fn clean_local_safety_checks() -> Vec<ReadinessCheck> {
+        vec![
+            check(
+                "secret-guard-preview",
+                "Secret Guard",
+                "pass",
+                "info",
+                "test secret guard pass".to_string(),
+            ),
+            check(
+                "agent-repository-trust",
+                "Agent repository trust",
+                "pass",
+                "info",
+                "test repository trust pass".to_string(),
+            ),
+        ]
+    }
+
     #[test]
     fn blocks_when_agent_execution_is_enabled() {
         let mut runtime = runtime();
         runtime.agent_execution_enabled = true;
-        let preview =
-            preview_from_with_release_checks(runtime, library(0, 1, 0), clean_release_checks());
+        let preview = preview_from_with_checks(
+            runtime,
+            library(0, 1, 0),
+            clean_local_safety_checks(),
+            clean_release_checks(),
+        );
 
         assert_eq!(preview.state, "blocked");
         assert!(preview
@@ -786,8 +977,12 @@ mod tests {
 
     #[test]
     fn requests_review_without_restore_points() {
-        let preview =
-            preview_from_with_release_checks(runtime(), library(0, 0, 0), clean_release_checks());
+        let preview = preview_from_with_checks(
+            runtime(),
+            library(0, 0, 0),
+            clean_local_safety_checks(),
+            clean_release_checks(),
+        );
 
         assert_eq!(preview.state, "local-review-required");
         assert!(preview
@@ -798,17 +993,22 @@ mod tests {
 
     #[test]
     fn passes_local_when_public_baseline_gates_are_clean() {
-        let preview =
-            preview_from_with_release_checks(runtime(), library(0, 1, 0), clean_release_checks());
+        let preview = preview_from_with_checks(
+            runtime(),
+            library(0, 1, 0),
+            clean_local_safety_checks(),
+            clean_release_checks(),
+        );
 
         assert_eq!(preview.state, "ready-local");
     }
 
     #[test]
     fn release_blocked_checks_request_local_review() {
-        let preview = preview_from_with_release_checks(
+        let preview = preview_from_with_checks(
             runtime(),
             library(0, 1, 0),
+            clean_local_safety_checks(),
             vec![check(
                 "release-git-repository",
                 "Release Git repository",

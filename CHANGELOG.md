@@ -18,6 +18,8 @@ Internal design document versions are not public release numbers.
   OSSInsight, and Hugging Face Trending inside the Data Source Registry preview.
 - Added a public Baigong module manifest template for future guarded tools,
   Agents, automation adapters, and data-source connectors.
+- Surfaced Secret Guard and Agent repository trust in Production Readiness and
+  Security Center capability evidence.
 
 ### Changed
 

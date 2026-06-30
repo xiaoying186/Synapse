@@ -34,7 +34,7 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
       unknown workspace, dirty workspace, public repo, private/local-only repo.
 - [x] Run Secret Guard in the public baseline GitHub Actions workflow before
       static preflight.
-- [ ] Surface Secret Guard and repository trust results in Production Readiness
+- [x] Surface Secret Guard and repository trust results in Production Readiness
       and Security Center.
 
 ## P1 - Baigong Data And Project Radar
