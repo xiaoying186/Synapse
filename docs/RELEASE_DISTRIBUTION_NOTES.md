@@ -66,14 +66,35 @@ shared as a formal release.
 
 ## Signing
 
-The current repository does not include signing credentials or certificate
-configuration. Before distributing outside a private local test:
+The repository does not include signing credentials. Public Windows releases
+must be signed by the guarded manual release workflow before SHA-256 checksum
+generation and upload.
+
+Configure these GitHub repository secrets before running
+`Synapse Manual Release`:
+
+- `WINDOWS_SIGNING_CERT_BASE64`: base64-encoded `.pfx` code-signing
+  certificate.
+- `WINDOWS_SIGNING_CERT_PASSWORD`: password for the `.pfx` certificate.
+
+Optionally configure this GitHub repository variable:
+
+- `WINDOWS_SIGNING_TIMESTAMP_URL`: timestamp server URL. If empty, the workflow
+  uses `http://timestamp.digicert.com`.
+
+To encode a local `.pfx` for the secret value:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("path\to\certificate.pfx"))
+```
+
+Before distributing outside a private local test:
 
 - Use a trusted code-signing certificate owned by the operator or release
   organization.
 - Keep signing certificates, passwords, tokens, and timestamp credentials out of
   Git and out of `.synapse/`.
-- Sign the final MSI or configure Tauri signing in the release environment.
+- Confirm the manual release workflow signs and verifies the final MSI.
 - Timestamp the signature so the installer remains verifiable after certificate
   expiry.
 - Record the certificate subject, timestamp authority, and signed artifact path
@@ -174,11 +195,17 @@ Use it only after the public baseline CI is green:
 4. Enter a SemVer-style version such as `0.0.1`.
 5. Confirm that the workflow creates tag `v{version}` and release title
    `Synapse v{version}`.
-6. Verify that every uploaded installer has a matching `.sha256` file.
+6. Verify that every uploaded installer is signed.
+7. Verify that every uploaded installer has a matching `.sha256` file.
 
 The workflow intentionally uses `workflow_dispatch` only. It does not run on
 ordinary pushes to `main`, and it refuses to continue when the release tag
 already exists.
+
+Release notes are generated from `CHANGELOG.md`. The workflow prefers a
+matching `## {version}` section, and otherwise uses `## Unreleased`. Update the
+changelog before publishing a new version so the GitHub Release page carries
+the same change summary as the repository.
 
 The checked-in source can remain on the `0.0.0` public baseline. During the
 manual release job, the runner workspace temporarily synchronizes these files

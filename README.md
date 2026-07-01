@@ -138,7 +138,10 @@ Maintainers can publish a versioned Windows installer with the manual
 `Synapse Manual Release` GitHub Actions workflow
 (`.github/workflows/manual-release.yml`). Trigger it from the Actions tab, enter
 a SemVer-style version such as `0.0.1`, and verify that it creates a
-`v{version}` release with installer assets and matching `.sha256` files.
+`v{version}` release with signed installer assets, matching `.sha256` files,
+and release notes generated from `CHANGELOG.md`. The workflow requires
+`WINDOWS_SIGNING_CERT_BASE64` and `WINDOWS_SIGNING_CERT_PASSWORD` repository
+secrets before it will publish a Windows installer.
 
 The checked-in source remains on the `0.0.0` public baseline unless a separate
 version-bump commit is intentionally made. The manual release workflow

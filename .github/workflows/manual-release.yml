@@ -90,6 +90,69 @@ jobs:
       - name: Build Tauri installer
         run: npm.cmd run tauri:build
 
+      - name: Sign Windows installers
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+          WINDOWS_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD)) {
+            throw "Windows signing secrets are required: WINDOWS_SIGNING_CERT_BASE64 and WINDOWS_SIGNING_CERT_PASSWORD."
+          }
+
+          $bundleRoot = "src-tauri/target/release/bundle"
+          if (!(Test-Path $bundleRoot)) {
+            throw "Tauri bundle directory was not found: $bundleRoot"
+          }
+
+          $installers = Get-ChildItem $bundleRoot -Recurse -File |
+            Where-Object {
+              $_.Extension -in @(".msi", ".exe") -or
+              $_.FullName -match "\\nsis\\"
+            } |
+            Sort-Object FullName
+
+          if ($installers.Count -eq 0) {
+            throw "No Windows installer artifacts were found under $bundleRoot."
+          }
+
+          $certPath = Join-Path $env:RUNNER_TEMP "synapse-windows-signing.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
+          $password = ConvertTo-SecureString $env:WINDOWS_SIGNING_CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          if (-not $cert.Thumbprint) {
+            throw "Windows signing certificate import did not return a certificate thumbprint."
+          }
+
+          $signToolCommand = Get-Command signtool.exe -ErrorAction SilentlyContinue
+          $signTool = if ($signToolCommand) { $signToolCommand.Source } else { $null }
+          if (-not $signTool) {
+            $kitRoot = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+            $signTool = Get-ChildItem $kitRoot -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $signTool) {
+            throw "signtool.exe was not found on the Windows runner."
+          }
+
+          $timestampUrl = $env:WINDOWS_SIGNING_TIMESTAMP_URL
+          if ([string]::IsNullOrWhiteSpace($timestampUrl)) {
+            $timestampUrl = "http://timestamp.digicert.com"
+          }
+
+          foreach ($installer in $installers) {
+            & $signTool sign /fd SHA256 /td SHA256 /tr $timestampUrl /sha1 $cert.Thumbprint /v $installer.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool failed while signing $($installer.FullName)."
+            }
+            & $signTool verify /pa /v $installer.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool verification failed for $($installer.FullName)."
+            }
+          }
+
       - name: Collect installers and SHA-256 files
         id: artifacts
         shell: pwsh
@@ -126,21 +189,7 @@ jobs:
       - name: Create release notes
         shell: pwsh
         run: |
-          @(
-            "Synapse $env:SYNAPSE_RELEASE_VERSION manual release."
-            ""
-            "This release was created by the guarded manual release workflow."
-            ""
-            "Validation completed before packaging:"
-            "- npm ci"
-            "- npm.cmd run secret:scan"
-            "- npm.cmd run preflight:static"
-            "- npm.cmd run i18n:check"
-            "- npm.cmd run build"
-            "- npm.cmd run tauri:build"
-            ""
-            "Installers include adjacent SHA-256 checksum files."
-          ) | Set-Content -LiteralPath "$env:RUNNER_TEMP/release-notes.md" -Encoding utf8
+          node scripts/release-notes.mjs $env:SYNAPSE_RELEASE_VERSION "$env:RUNNER_TEMP/release-notes.md"
 
       - name: Create GitHub Release
         shell: pwsh

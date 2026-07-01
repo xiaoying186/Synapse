@@ -32,12 +32,17 @@ guarded production use.
   mobile screenshots are captured under `.tmp/ui-smoke/`.
 - Windows MSI release packaging has WiX available on PATH or pre-cached for
   Tauri bundling.
+- `CHANGELOG.md` has either a matching `## {version}` section or a reviewed
+  `## Unreleased` section for the GitHub Release notes.
+- GitHub Secrets include `WINDOWS_SIGNING_CERT_BASE64` and
+  `WINDOWS_SIGNING_CERT_PASSWORD` before running the manual release workflow.
 - `npm.cmd run wix:diagnose` passes on the release machine before MSI
   packaging.
 - `npm.cmd run tauri -- build --debug` can produce a debug MSI.
 - Release MSI builds are verified separately before distribution.
-- Signing, hash, and distribution notes in `docs/RELEASE_DISTRIBUTION_NOTES.md`
-  are followed before sharing an MSI outside private local testing.
+- Signing, verification, hash, changelog, and distribution notes in
+  `docs/RELEASE_DISTRIBUTION_NOTES.md` are followed before sharing an MSI
+  outside private local testing.
 - `npm.cmd run release:evidence` produces local JSON/Markdown release evidence;
   a non-zero exit means release blockers are still present.
 - `.tmp/release-evidence/release-evidence.json` includes a top-level
@@ -90,8 +95,9 @@ guarded production use.
 - Do not include internal design documents, monetization plans, private
   roadmaps, local paths, personal workflows, or unpublished module strategies
   in the public repository.
-- GitHub release notes describe this as a guarded local-first baseline and avoid
-  claiming internal-design non-goals as shipped features.
+- GitHub release notes are generated from `CHANGELOG.md`, describe this as a
+  guarded local-first baseline, and avoid claiming internal-design non-goals as
+  shipped features.
 
 ## Non-Goals For This Baseline
 

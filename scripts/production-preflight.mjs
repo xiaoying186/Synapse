@@ -900,6 +900,10 @@ const requiredReleaseWorkflowItems = [
   "npm.cmd run i18n:check",
   "npm.cmd run build",
   "npm.cmd run tauri:build",
+  "WINDOWS_SIGNING_CERT_BASE64",
+  "WINDOWS_SIGNING_CERT_PASSWORD",
+  "verify /pa",
+  "scripts/release-notes.mjs",
   "Get-FileHash -Algorithm SHA256",
   "gh release create",
 ];

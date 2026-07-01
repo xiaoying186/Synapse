@@ -7,6 +7,14 @@ Internal design document versions are not public release numbers.
 
 ### Added
 
+- Added changelog-driven GitHub Release notes for the manual release workflow.
+- Added mandatory Windows installer code signing to the manual release workflow
+  before SHA-256 checksum generation and asset upload.
+
+## 0.0.1 - Guarded Manual Release Workflow
+
+### Added
+
 - Added repository collaboration baselines for Codex task tracking, Synapse
   fusion tracking, public design notes, and branch/PR workflow guidance.
 - Added a read-only Secret Guard scanner and connected it to static preflight.
