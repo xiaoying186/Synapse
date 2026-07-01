@@ -88,6 +88,11 @@ To encode a local `.pfx` for the secret value:
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("path\to\certificate.pfx"))
 ```
 
+Self-signed test certificates are not accepted for public releases. They can
+produce a cryptographic signature, but Windows will still report an untrusted
+publisher and `signtool verify /pa` will fail on GitHub Actions. Use a public
+CA-issued code-signing certificate for release assets.
+
 Before distributing outside a private local test:
 
 - Use a trusted code-signing certificate owned by the operator or release

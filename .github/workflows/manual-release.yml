@@ -124,6 +124,9 @@ jobs:
           if (-not $cert.Thumbprint) {
             throw "Windows signing certificate import did not return a certificate thumbprint."
           }
+          if ($cert.Subject -eq $cert.Issuer) {
+            throw "The Windows signing certificate is self-signed. Use a trusted code-signing certificate issued by a public CA for public releases."
+          }
 
           $signToolCommand = Get-Command signtool.exe -ErrorAction SilentlyContinue
           $signTool = if ($signToolCommand) { $signToolCommand.Source } else { $null }
