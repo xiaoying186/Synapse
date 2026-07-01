@@ -115,6 +115,9 @@ import "./App.css";
 function App() {
   const { t } = useI18n();
   const { activity, setActivity } = useActivityLog(t("activity.waiting"));
+  const [activeCognitiveView, setActiveCognitiveView] = useState<
+    "knowledge" | "thinking" | "execution"
+  >("knowledge");
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [plan, setPlan] = useState<PlanPreview | null>(null);
   const [history, setHistory] = useState<PlanRecord[]>([]);
@@ -1744,19 +1747,74 @@ function App() {
   }
 
   return (
-    <main className="shell">
-      <aside className="sidebar">
+    <main className="shell cognitive-shell">
+      <header className="topbar cognitive-topbar">
+        <div>
+          <p className="eyebrow">{t("topbar.eyebrow")}</p>
+          <h2>{t("topbar.title")}</h2>
+        </div>
+        <div className="topbar-status-grid">
+          <div className="status-pill">{status?.sandbox ?? "..."}</div>
+          <div className="topbar-chip">
+            <span>{t("cognitive.modelStatus")}</span>
+            <strong>{status?.mode ?? t("mode.loading")}</strong>
+          </div>
+          <div className="topbar-chip">
+            <span>{t("cognitive.tokenBudget")}</span>
+            <strong>{status?.max_steps ?? "..."} {t("overview.steps")}</strong>
+          </div>
+        </div>
+      </header>
+
+      <aside className="sidebar cognitive-sidebar">
         <div>
           <p className="eyebrow">{t("app.version")}</p>
           <h1>{status?.app_name ?? t("app.nameFallback")}</h1>
         </div>
 
         <nav className="nav" aria-label={t("nav.primary")}>
-          <button className="nav-item active" type="button">{t("nav.workbench")}</button>
-          <button className="nav-item" type="button">{t("nav.plans")}</button>
-          <button className="nav-item" type="button">{t("nav.memory")}</button>
-          <button className="nav-item" type="button">{t("nav.audit")}</button>
+          <button
+            className={activeCognitiveView === "knowledge" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveCognitiveView("knowledge")}
+          >
+            {t("cognitive.knowledge")}
+          </button>
+          <button
+            className={activeCognitiveView === "thinking" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveCognitiveView("thinking")}
+          >
+            {t("cognitive.thinking")}
+          </button>
+          <button
+            className={activeCognitiveView === "execution" ? "nav-item active" : "nav-item"}
+            type="button"
+            onClick={() => setActiveCognitiveView("execution")}
+          >
+            {t("cognitive.execution")}
+          </button>
         </nav>
+
+        <section className="knowledge-tree" aria-label={t("cognitive.knowledgeTree")}>
+          <p className="eyebrow">{t("cognitive.knowledgeTree")}</p>
+          <div className="knowledge-node active">
+            <strong>{t("terms.zhishu")}</strong>
+            <span>{memoryItems.length} {t("cognitive.items")}</span>
+          </div>
+          <div className="knowledge-node">
+            <strong>{t("terms.xingtai")}</strong>
+            <span>{taskDirections.length} {t("cognitive.directions")}</span>
+          </div>
+          <div className="knowledge-node">
+            <strong>{t("terms.baigong")}</strong>
+            <span>{arsenalPreview?.tools.length ?? 0} {t("cognitive.tools")}</span>
+          </div>
+          <div className="knowledge-node">
+            <strong>{t("terms.taiheng")}</strong>
+            <span>{auditEvents.length} {t("cognitive.auditEvents")}</span>
+          </div>
+        </section>
 
         <div className="mode-panel">
           <span>{t("mode.current")}</span>
@@ -1766,16 +1824,8 @@ function App() {
         <LanguageSelector />
       </aside>
 
-      <section className="workspace" aria-label={t("app.workspaceAria")}>
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">{t("topbar.eyebrow")}</p>
-            <h2>{t("topbar.title")}</h2>
-          </div>
-          <div className="status-pill">{status?.sandbox ?? "..."}</div>
-        </header>
-
-        <section className="overview" aria-label={t("overview.aria")}>
+      <section className="workspace cognitive-workspace" aria-label={t("app.workspaceAria")}>
+        <section className="overview cognitive-overview" aria-label={t("overview.aria")}>
           <div className="metric">
             <span>{t("overview.executionLevel")}</span>
             <strong>{status?.execution_level ?? "..."}</strong>
@@ -1795,7 +1845,7 @@ function App() {
         </section>
 
         {status && status.config_warnings.length > 0 && (
-          <section className="panel warning-panel">
+          <section className="panel warning-panel cognitive-warning">
             <div className="panel-heading">
               <p className="eyebrow">{t("runtimeConfig.eyebrow")}</p>
               <h3>{t("runtimeConfig.warnings")}</h3>
@@ -1808,387 +1858,417 @@ function App() {
           </section>
         )}
 
-        <CapabilityStatusPanel capabilities={status?.capabilities ?? []} />
-        <SchedulerStatusPanel status={status?.scheduler_status} />
-        <SecurityCenterPanel
-          auditEvents={auditEvents}
-          capabilities={status?.capabilities ?? []}
-          isRefreshing={isRefreshingSecurityCenter}
-          onRefresh={refreshSecurityCenter}
-          onRollbackSnapshot={rollbackProtectedSnapshot}
-          rollingBackSnapshotId={rollingBackProtectedSnapshotId}
-          snapshots={protectedSnapshots}
-        />
-        <LibraryHomePanel
-          isRefreshing={isRefreshingLibraryHome}
-          onRefresh={refreshProductionOverview}
-          preview={libraryHomePreview}
-        />
-        <ProductionReadinessPanel
-          isRefreshing={isRefreshingProductionReadiness}
-          onRefresh={refreshProductionOverview}
-          preview={productionReadinessPreview}
-        />
-        <SagaRecoveryPanel
-          isRefreshing={isRefreshingSagaRecovery}
-          recordingSagaId={recordingSagaRecoveryId}
-          onRefresh={refreshProductionOverview}
-          onRecordReview={recordSagaRecoveryReview}
-          preview={sagaRecoveryPreview}
-        />
+        <section className="cognitive-ide-grid">
+          <section className="cognitive-main" aria-label={t("cognitive.mainWorkspace")}>
+            <div className="cognitive-tabs" role="tablist" aria-label={t("cognitive.viewTabs")}>
+              {(["knowledge", "thinking", "execution"] as const).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeCognitiveView === view}
+                  className={activeCognitiveView === view ? "cognitive-tab active" : "cognitive-tab"}
+                  onClick={() => setActiveCognitiveView(view)}
+                >
+                  <strong>{t(`cognitive.${view}`)}</strong>
+                  <span>{t(`cognitive.${view}Hint`)}</span>
+                </button>
+              ))}
+            </div>
 
-        <section className="panel intent-panel">
-          <div className="panel-heading">
-            <p className="eyebrow">{t("intent.eyebrow")}</p>
-            <h3>{t("intent.title")}</h3>
-          </div>
-
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitIntent();
-            }}
-          >
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.currentTarget.value)}
-              placeholder={t("intent.placeholder")}
-            />
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t("intent.working") : t("intent.submit")}
-            </button>
-          </form>
-        </section>
-
-        <section className="memory-grid">
-          <InspirationPanel
-            draft={inspirationDraft}
-            isCapturing={isCapturing}
-            onCapture={captureInspiration}
-            onDraftChange={setInspirationDraft}
-            onTagsChange={setInspirationTags}
-            tags={inspirationTags}
-          />
-          <ExperiencePanel
-            draft={experienceDraft}
-            isSaving={isSavingExperience}
-            onCapture={captureExperience}
-            onDraftChange={setExperienceDraft}
-            onTagsChange={setExperienceTags}
-            onTypeChange={setExperienceType}
-            tags={experienceTags}
-            type={experienceType}
-          />
-          <ZhishuCapturePanel
-            draft={zhishuDraft}
-            isSaving={isSavingZhishu}
-            kind={zhishuKind}
-            onCapture={captureZhishuItem}
-            onDraftChange={setZhishuDraft}
-            onKindChange={setZhishuKind}
-            onTagsChange={setZhishuTags}
-            tags={zhishuTags}
-          />
-          <MemoryPanel
-            items={memoryItems}
-            onRollback={rollbackZhishuSnapshot}
-            onReview={reviewMemoryItem}
-            rollingBackSnapshotId={rollingBackSnapshotId}
-            reviewingItemId={reviewingMemoryItemId}
-            snapshots={zhishuSnapshots}
-          />
-          <ZhishuSearchPanel
-            isGeneratingRelations={isGeneratingZhishuRelations}
-            isImportingRepository={isImportingZhishuRepository}
-            isScanningMaintenance={isScanningZhishuMaintenance}
-            isSearching={isSearchingZhishu}
-            maintenanceFindings={zhishuMaintenanceFindings}
-            onGenerateRelations={generateZhishuRelations}
-            onExportRepository={exportZhishuRepository}
-            onImportRepository={importZhishuRepository}
-            onQueryChange={setZhishuSearchQuery}
-            onReviewMaintenanceFinding={reviewZhishuMaintenanceFinding}
-            onReviewRelation={reviewZhishuRelation}
-            onScanMaintenance={scanZhishuMaintenance}
-            onSearch={searchZhishu}
-            onRepositoryBundleChange={setZhishuRepositoryBundle}
-            query={zhishuSearchQuery}
-            repositoryBundle={zhishuRepositoryBundle}
-            repositoryImportReceipt={zhishuRepositoryImportReceipt}
-            relations={zhishuRelations}
-            response={zhishuSearchResponse}
-            reviewingMaintenanceFindingId={reviewingMaintenanceFindingId}
-            reviewingRelationId={reviewingRelationId}
-          />
-        </section>
-
-        <section className="task-center-grid">
-          <DirectionSetupPanel
-            description={directionDescription}
-            frequency={directionFrequency}
-            isSaving={isSavingDirection}
-            keywords={directionKeywords}
-            onDescriptionChange={setDirectionDescription}
-            onFrequencyChange={setDirectionFrequency}
-            onKeywordsChange={setDirectionKeywords}
-            onOnlineEnabledChange={setDirectionOnlineEnabled}
-            onOutputTemplateChange={setDirectionOutputTemplate}
-            onPriorityChange={setDirectionPriority}
-            onPushChannelToggle={(channel, checked) => {
-              setDirectionPushChannels((channels) => {
-                if (checked) {
-                  return channels.includes(channel) ? channels : [...channels, channel];
-                }
-
-                return channels.filter((item) => item !== channel);
-              });
-            }}
-            onPushEnabledChange={setDirectionPushEnabled}
-            onSave={saveTaskDirection}
-            onTitleChange={setDirectionTitle}
-            onlineEnabled={directionOnlineEnabled}
-            outputTemplate={directionOutputTemplate}
-            priority={directionPriority}
-            pushChannels={directionPushChannels}
-            pushEnabled={directionPushEnabled}
-            title={directionTitle}
-          />
-          <DirectionListPanel
-            directions={taskDirections}
-            isMining={isMiningTasks}
-            onMine={generateTaskCandidates}
-            onRequestRun={requestTaskRun}
-            onSetActive={setTaskDirectionActive}
-            requestingDirectionId={requestingRunDirectionId}
-            schedulePreviews={taskSchedulePreviews}
-            updatingDirectionId={updatingDirectionId}
-          />
-        </section>
-
-          <TaskRunPanel
-            artifacts={taskArtifacts}
-            executingRunId={executingRunId}
-            isTicking={isTickingScheduler}
-            onArchive={(runId) => updateTaskRunState(runId, "archive")}
-            onCancel={(runId) => updateTaskRunState(runId, "cancel")}
-            onExecute={executeTaskRun}
-            onPromoteArtifact={promoteTaskArtifact}
-          onSchedulerTick={runSchedulerTick}
-          onReview={reviewTaskRun}
-            promotingArtifactId={promotingArtifactId}
-            promotedArtifactIds={memoryItems.flatMap((item) =>
-              item.tags
-                .filter((tag) => tag.startsWith("artifact:"))
-                .map((tag) => tag.slice("artifact:".length)),
+            {activeCognitiveView === "knowledge" && (
+              <section className="cognitive-view">
+                <LibraryHomePanel
+                  isRefreshing={isRefreshingLibraryHome}
+                  onRefresh={refreshProductionOverview}
+                  preview={libraryHomePreview}
+                />
+                <section className="memory-grid">
+                  <InspirationPanel
+                    draft={inspirationDraft}
+                    isCapturing={isCapturing}
+                    onCapture={captureInspiration}
+                    onDraftChange={setInspirationDraft}
+                    onTagsChange={setInspirationTags}
+                    tags={inspirationTags}
+                  />
+                  <ExperiencePanel
+                    draft={experienceDraft}
+                    isSaving={isSavingExperience}
+                    onCapture={captureExperience}
+                    onDraftChange={setExperienceDraft}
+                    onTagsChange={setExperienceTags}
+                    onTypeChange={setExperienceType}
+                    tags={experienceTags}
+                    type={experienceType}
+                  />
+                  <ZhishuCapturePanel
+                    draft={zhishuDraft}
+                    isSaving={isSavingZhishu}
+                    kind={zhishuKind}
+                    onCapture={captureZhishuItem}
+                    onDraftChange={setZhishuDraft}
+                    onKindChange={setZhishuKind}
+                    onTagsChange={setZhishuTags}
+                    tags={zhishuTags}
+                  />
+                  <MemoryPanel
+                    items={memoryItems}
+                    onRollback={rollbackZhishuSnapshot}
+                    onReview={reviewMemoryItem}
+                    rollingBackSnapshotId={rollingBackSnapshotId}
+                    reviewingItemId={reviewingMemoryItemId}
+                    snapshots={zhishuSnapshots}
+                  />
+                  <ZhishuSearchPanel
+                    isGeneratingRelations={isGeneratingZhishuRelations}
+                    isImportingRepository={isImportingZhishuRepository}
+                    isScanningMaintenance={isScanningZhishuMaintenance}
+                    isSearching={isSearchingZhishu}
+                    maintenanceFindings={zhishuMaintenanceFindings}
+                    onGenerateRelations={generateZhishuRelations}
+                    onExportRepository={exportZhishuRepository}
+                    onImportRepository={importZhishuRepository}
+                    onQueryChange={setZhishuSearchQuery}
+                    onReviewMaintenanceFinding={reviewZhishuMaintenanceFinding}
+                    onReviewRelation={reviewZhishuRelation}
+                    onScanMaintenance={scanZhishuMaintenance}
+                    onSearch={searchZhishu}
+                    onRepositoryBundleChange={setZhishuRepositoryBundle}
+                    query={zhishuSearchQuery}
+                    repositoryBundle={zhishuRepositoryBundle}
+                    repositoryImportReceipt={zhishuRepositoryImportReceipt}
+                    relations={zhishuRelations}
+                    response={zhishuSearchResponse}
+                    reviewingMaintenanceFindingId={reviewingMaintenanceFindingId}
+                    reviewingRelationId={reviewingRelationId}
+                  />
+                </section>
+                <SourceRegistryPanel
+                  isRefreshing={isLoadingSourceRegistry}
+                  onRefresh={loadSourceRegistryPreview}
+                  preview={sourceRegistryPreview}
+                />
+                <CodebaseMemoryPanel
+                  isPreviewing={isPreviewingCodebaseMemory}
+                  onPreview={previewCodebaseMemory}
+                  preview={codebaseMemoryPreview}
+                />
+                <PermissionMemoryPanel
+                  isPreviewing={isPreviewingPermissionMemory}
+                  onPreview={previewPermissionMemory}
+                  preview={permissionMemoryPreview}
+                />
+              </section>
             )}
-            records={taskRunRecords}
-            reviewingRunId={reviewingRunId}
-            updatingRunId={updatingRunId}
-          />
-          <DailyBriefingPanel
-            isArchiving={isArchivingDailyBriefing}
-            isPreviewing={isPreviewingDailyBriefing}
-            onArchive={archiveDailyBriefing}
-            onPreview={previewDailyBriefing}
-            preview={dailyBriefingPreview}
-            runs={taskRunRecords}
-          />
-          <ComputerDiagnosticsPanel
-            isArchiving={isArchivingComputerDiagnostics}
-            isPreviewing={isPreviewingComputerDiagnostics}
-            onArchive={archiveComputerDiagnostics}
-            onPreview={previewComputerDiagnostics}
-            report={computerDiagnosticReport}
-            runs={taskRunRecords}
-          />
-          <WebAppShellPanel
-            isPreviewing={isPreviewingWebAppShell}
-            onPreview={previewWebAppShell}
-            preview={webAppShellPreview}
-          />
-          <CodebaseMemoryPanel
-            isPreviewing={isPreviewingCodebaseMemory}
-            onPreview={previewCodebaseMemory}
-            preview={codebaseMemoryPreview}
-          />
-          <PermissionMemoryPanel
-            isPreviewing={isPreviewingPermissionMemory}
-            onPreview={previewPermissionMemory}
-            preview={permissionMemoryPreview}
-          />
-          <QuantLabPanel
-            isArchiving={isArchivingQuant}
-            isResearching={isResearchingQuant}
-            onArchive={archiveQuantResearch}
-            onResearch={previewQuantResearch}
-            report={quantResearchReport}
-            runs={taskRunRecords}
-          />
 
-          <DeviceSyncPanel
-            importPreview={deviceSyncImportPreview}
-            importReceipt={deviceSyncImportReceipt}
-            isExporting={isExportingDeviceSync}
-            isImporting={isImportingDeviceSync}
-            isPreviewingImport={isPreviewingDeviceSyncImport}
-            onExport={exportDeviceSyncPackage}
-            onImport={importDeviceSyncPackage}
-            onPackageChange={setDeviceSyncPackageJson}
-            onPreviewImport={previewDeviceSyncImport}
-            onPreviewRelay={previewSyncRelay}
-            packageJson={deviceSyncPackageJson}
-            relayPreview={relayPreview}
-            state={deviceSyncState}
-            syncPackage={deviceSyncPackage}
-          />
+            {activeCognitiveView === "thinking" && (
+              <section className="cognitive-view">
+                <section className="panel intent-panel">
+                  <div className="panel-heading">
+                    <p className="eyebrow">{t("intent.eyebrow")}</p>
+                    <h3>{t("intent.title")}</h3>
+                  </div>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      submitIntent();
+                    }}
+                  >
+                    <textarea
+                      value={draft}
+                      onChange={(event) => setDraft(event.currentTarget.value)}
+                      placeholder={t("intent.placeholder")}
+                    />
+                    <button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? t("intent.working") : t("intent.submit")}
+                    </button>
+                  </form>
+                </section>
+                <section className="content-grid">
+                  <TracePanel activity={activity} plan={plan} />
+                  <PlanStepsPanel plan={plan} status={status} />
+                </section>
+                <CandidatePanel
+                  candidates={taskCandidates}
+                  onReview={reviewTaskCandidate}
+                  reviewingCandidateId={reviewingCandidateId}
+                />
+                <SynthesisPanel
+                  isLoading={isLoadingSynthesis}
+                  onPromote={promoteSynthesisCandidate}
+                  onRefresh={loadSynthesisPreview}
+                  preview={synthesisPreview}
+                  promotingCandidateId={promotingSynthesisCandidateId}
+                />
+                <PolicyPanel plan={plan} />
+                <ContextBudgetPanel
+                  draft={contextBudgetDraft}
+                  isPreviewing={isPreviewingContextBudget}
+                  onDraftChange={setContextBudgetDraft}
+                  onPreview={previewContextBudget}
+                  preview={contextBudgetPreview}
+                />
+                <AuditPanel
+                  isReviewing={isReviewing}
+                  onReviewPlan={reviewCurrentPlan}
+                  plan={plan}
+                  reviewReceipt={reviewReceipt}
+                />
+                <HistoryPanel
+                  activePlanId={activePlanId}
+                  history={history}
+                  onClear={clearHistory}
+                  onSelect={({ executionRecord, plan, planId, reviewReceipt }) => {
+                    setPlan(plan);
+                    setActivePlanId(planId);
+                    setReviewReceipt(reviewReceipt);
+                    setExecutionRecord(executionRecord);
+                  }}
+                />
+              </section>
+            )}
 
-        <CandidatePanel
-          candidates={taskCandidates}
-          onReview={reviewTaskCandidate}
-          reviewingCandidateId={reviewingCandidateId}
-        />
+            {activeCognitiveView === "execution" && (
+              <section className="cognitive-view">
+                <section className="task-center-grid">
+                  <DirectionSetupPanel
+                    description={directionDescription}
+                    frequency={directionFrequency}
+                    isSaving={isSavingDirection}
+                    keywords={directionKeywords}
+                    onDescriptionChange={setDirectionDescription}
+                    onFrequencyChange={setDirectionFrequency}
+                    onKeywordsChange={setDirectionKeywords}
+                    onOnlineEnabledChange={setDirectionOnlineEnabled}
+                    onOutputTemplateChange={setDirectionOutputTemplate}
+                    onPriorityChange={setDirectionPriority}
+                    onPushChannelToggle={(channel, checked) => {
+                      setDirectionPushChannels((channels) => {
+                        if (checked) {
+                          return channels.includes(channel) ? channels : [...channels, channel];
+                        }
+                        return channels.filter((item) => item !== channel);
+                      });
+                    }}
+                    onPushEnabledChange={setDirectionPushEnabled}
+                    onSave={saveTaskDirection}
+                    onTitleChange={setDirectionTitle}
+                    onlineEnabled={directionOnlineEnabled}
+                    outputTemplate={directionOutputTemplate}
+                    priority={directionPriority}
+                    pushChannels={directionPushChannels}
+                    pushEnabled={directionPushEnabled}
+                    title={directionTitle}
+                  />
+                  <DirectionListPanel
+                    directions={taskDirections}
+                    isMining={isMiningTasks}
+                    onMine={generateTaskCandidates}
+                    onRequestRun={requestTaskRun}
+                    onSetActive={setTaskDirectionActive}
+                    requestingDirectionId={requestingRunDirectionId}
+                    schedulePreviews={taskSchedulePreviews}
+                    updatingDirectionId={updatingDirectionId}
+                  />
+                </section>
+                <TaskRunPanel
+                  artifacts={taskArtifacts}
+                  executingRunId={executingRunId}
+                  isTicking={isTickingScheduler}
+                  onArchive={(runId) => updateTaskRunState(runId, "archive")}
+                  onCancel={(runId) => updateTaskRunState(runId, "cancel")}
+                  onExecute={executeTaskRun}
+                  onPromoteArtifact={promoteTaskArtifact}
+                  onSchedulerTick={runSchedulerTick}
+                  onReview={reviewTaskRun}
+                  promotingArtifactId={promotingArtifactId}
+                  promotedArtifactIds={memoryItems.flatMap((item) =>
+                    item.tags
+                      .filter((tag) => tag.startsWith("artifact:"))
+                      .map((tag) => tag.slice("artifact:".length)),
+                  )}
+                  records={taskRunRecords}
+                  reviewingRunId={reviewingRunId}
+                  updatingRunId={updatingRunId}
+                />
+                <ExecutionPanel executionRecord={executionRecord} plan={plan} />
+                <ExecutorContractPanel
+                  isLoading={isLoadingExecutorContract}
+                  onRefresh={loadExecutorContractPreview}
+                  preview={executorContractPreview}
+                />
+                <CapabilityPreviewPanel
+                  aggregationPreview={aggregationPreview}
+                  arsenalPreview={arsenalPreview}
+                  isLoadingAggregation={isPreviewingAggregation}
+                  isLoadingArsenal={isLoadingArsenal}
+                  isImportingSources={isImportingSources}
+                  isFetchingHttpSource={isFetchingHttpSource}
+                  isLoadingSourceHealth={isLoadingSourceHealth}
+                  isRunningMockAdapter={isRunningMockAdapter}
+                  mockAdapterInput={mockAdapterInput}
+                  mockAdapterReceipt={mockAdapterReceipt}
+                  mockAdapterRunId={mockAdapterRunId}
+                  httpSourceReceipt={httpSourceReceipt}
+                  sourceImportContent={sourceImportContent}
+                  sourceImportFormat={sourceImportFormat}
+                  sourceImportReceipt={sourceImportReceipt}
+                  sourceHealthReport={sourceHealthReport}
+                  onAggregationQueryChange={setAggregationQuery}
+                  onOnlineEnabledChange={setAggregationOnlineEnabled}
+                  onMockAdapterInputChange={setMockAdapterInput}
+                  onMockAdapterRunIdChange={setMockAdapterRunId}
+                  onRunMockAdapter={runMockAdapter}
+                  onFetchHttpSource={fetchConfiguredHttpSource}
+                  onSourceImportContentChange={setSourceImportContent}
+                  onSourceImportFormatChange={setSourceImportFormat}
+                  onSubmitSourceImport={importSourceObservations}
+                  onPreviewAggregation={previewAggregation}
+                  onRefreshArsenal={loadArsenalPreview}
+                  onRefreshSecurityCenter={refreshSecurityCenter}
+                  onRefreshSourceHealth={loadSourceHealthReport}
+                  onSetToolAllowState={setToolAllowState}
+                  onlineEnabled={aggregationOnlineEnabled}
+                  query={aggregationQuery}
+                  sourceObservationHistory={sourceObservationHistory}
+                  updatingToolId={updatingToolId}
+                />
+                <AgentHarnessPanel
+                  arsenalPreview={arsenalPreview}
+                  executionReceipt={agentExecutionReceipt}
+                  isExecuting={isExecutingCodexAgent}
+                  isRunning={isRunningAgentHarness}
+                  onDryRun={dryRunAgentHarness}
+                  onExecute={executeCodexAgent}
+                  receipt={agentDryRunReceipt}
+                  runs={taskRunRecords}
+                />
+                <AgentTeamPanel
+                  arsenalPreview={arsenalPreview}
+                  isPreviewing={isPreviewingAgentTeam}
+                  onPreview={previewAgentTeam}
+                  preview={agentTeamPreview}
+                  runs={taskRunRecords}
+                />
+                <BrowserAutomationPanel
+                  isExecuting={isExecutingBrowserInspection}
+                  isPreviewing={isPreviewingBrowserInspection}
+                  onExecute={executeBrowserInspection}
+                  onPreview={previewBrowserInspection}
+                  preview={browserInspectionPreview}
+                  receipt={browserInspectionReceipt}
+                  runs={taskRunRecords}
+                />
+                <LocalAppBridgePanel
+                  apps={localApps}
+                  isExecuting={isExecutingLocalApp}
+                  isPreviewing={isPreviewingLocalApp}
+                  onExecute={executeLocalAppLaunch}
+                  onPreview={previewLocalAppLaunch}
+                  onSetAllowState={setLocalAppAllowState}
+                  preview={localAppLaunchPreview}
+                  receipt={localAppLaunchReceipt}
+                  runs={taskRunRecords}
+                  updatingAppId={updatingLocalAppId}
+                />
+                <NotificationGatewayPanel
+                  isDelivering={isDeliveringNotification}
+                  isPreviewing={isPreviewingNotification}
+                  onDeliver={deliverNotification}
+                  onPreview={previewNotification}
+                  preview={notificationPreview}
+                  receipt={notificationReceipt}
+                  runs={taskRunRecords}
+                />
+                <DailyBriefingPanel
+                  isArchiving={isArchivingDailyBriefing}
+                  isPreviewing={isPreviewingDailyBriefing}
+                  onArchive={archiveDailyBriefing}
+                  onPreview={previewDailyBriefing}
+                  preview={dailyBriefingPreview}
+                  runs={taskRunRecords}
+                />
+                <ComputerDiagnosticsPanel
+                  isArchiving={isArchivingComputerDiagnostics}
+                  isPreviewing={isPreviewingComputerDiagnostics}
+                  onArchive={archiveComputerDiagnostics}
+                  onPreview={previewComputerDiagnostics}
+                  report={computerDiagnosticReport}
+                  runs={taskRunRecords}
+                />
+                <QuantLabPanel
+                  isArchiving={isArchivingQuant}
+                  isResearching={isResearchingQuant}
+                  onArchive={archiveQuantResearch}
+                  onResearch={previewQuantResearch}
+                  report={quantResearchReport}
+                  runs={taskRunRecords}
+                />
+                <WebAppShellPanel
+                  isPreviewing={isPreviewingWebAppShell}
+                  onPreview={previewWebAppShell}
+                  preview={webAppShellPreview}
+                />
+                <DeviceSyncPanel
+                  importPreview={deviceSyncImportPreview}
+                  importReceipt={deviceSyncImportReceipt}
+                  isExporting={isExportingDeviceSync}
+                  isImporting={isImportingDeviceSync}
+                  isPreviewingImport={isPreviewingDeviceSyncImport}
+                  onExport={exportDeviceSyncPackage}
+                  onImport={importDeviceSyncPackage}
+                  onPackageChange={setDeviceSyncPackageJson}
+                  onPreviewImport={previewDeviceSyncImport}
+                  onPreviewRelay={previewSyncRelay}
+                  packageJson={deviceSyncPackageJson}
+                  relayPreview={relayPreview}
+                  state={deviceSyncState}
+                  syncPackage={deviceSyncPackage}
+                />
+              </section>
+            )}
+          </section>
 
-        <SynthesisPanel
-          isLoading={isLoadingSynthesis}
-          onPromote={promoteSynthesisCandidate}
-          onRefresh={loadSynthesisPreview}
-          preview={synthesisPreview}
-          promotingCandidateId={promotingSynthesisCandidateId}
-        />
+          <aside className="context-rail" aria-label={t("cognitive.contextRail")}>
+            <ProductionReadinessPanel
+              isRefreshing={isRefreshingProductionReadiness}
+              onRefresh={refreshProductionOverview}
+              preview={productionReadinessPreview}
+            />
+            <CapabilityStatusPanel capabilities={status?.capabilities ?? []} />
+            <SchedulerStatusPanel status={status?.scheduler_status} />
+            <SecurityCenterPanel
+              auditEvents={auditEvents}
+              capabilities={status?.capabilities ?? []}
+              isRefreshing={isRefreshingSecurityCenter}
+              onRefresh={refreshSecurityCenter}
+              onRollbackSnapshot={rollbackProtectedSnapshot}
+              rollingBackSnapshotId={rollingBackProtectedSnapshotId}
+              snapshots={protectedSnapshots}
+            />
+            <SagaRecoveryPanel
+              isRefreshing={isRefreshingSagaRecovery}
+              recordingSagaId={recordingSagaRecoveryId}
+              onRefresh={refreshProductionOverview}
+              onRecordReview={recordSagaRecoveryReview}
+              preview={sagaRecoveryPreview}
+            />
+          </aside>
 
-        <CapabilityPreviewPanel
-          aggregationPreview={aggregationPreview}
-          arsenalPreview={arsenalPreview}
-          isLoadingAggregation={isPreviewingAggregation}
-          isLoadingArsenal={isLoadingArsenal}
-          isImportingSources={isImportingSources}
-          isFetchingHttpSource={isFetchingHttpSource}
-          isLoadingSourceHealth={isLoadingSourceHealth}
-          isRunningMockAdapter={isRunningMockAdapter}
-          mockAdapterInput={mockAdapterInput}
-          mockAdapterReceipt={mockAdapterReceipt}
-          mockAdapterRunId={mockAdapterRunId}
-          httpSourceReceipt={httpSourceReceipt}
-          sourceImportContent={sourceImportContent}
-          sourceImportFormat={sourceImportFormat}
-          sourceImportReceipt={sourceImportReceipt}
-          sourceHealthReport={sourceHealthReport}
-          onAggregationQueryChange={setAggregationQuery}
-          onOnlineEnabledChange={setAggregationOnlineEnabled}
-          onMockAdapterInputChange={setMockAdapterInput}
-          onMockAdapterRunIdChange={setMockAdapterRunId}
-          onRunMockAdapter={runMockAdapter}
-          onFetchHttpSource={fetchConfiguredHttpSource}
-          onSourceImportContentChange={setSourceImportContent}
-          onSourceImportFormatChange={setSourceImportFormat}
-          onSubmitSourceImport={importSourceObservations}
-          onPreviewAggregation={previewAggregation}
-          onRefreshArsenal={loadArsenalPreview}
-          onRefreshSecurityCenter={refreshSecurityCenter}
-          onRefreshSourceHealth={loadSourceHealthReport}
-          onSetToolAllowState={setToolAllowState}
-          onlineEnabled={aggregationOnlineEnabled}
-          query={aggregationQuery}
-          sourceObservationHistory={sourceObservationHistory}
-          updatingToolId={updatingToolId}
-        />
-
-        <SourceRegistryPanel
-          isRefreshing={isLoadingSourceRegistry}
-          onRefresh={loadSourceRegistryPreview}
-          preview={sourceRegistryPreview}
-        />
-
-        <AgentHarnessPanel
-          arsenalPreview={arsenalPreview}
-          executionReceipt={agentExecutionReceipt}
-          isExecuting={isExecutingCodexAgent}
-          isRunning={isRunningAgentHarness}
-          onDryRun={dryRunAgentHarness}
-          onExecute={executeCodexAgent}
-          receipt={agentDryRunReceipt}
-          runs={taskRunRecords}
-        />
-
-        <BrowserAutomationPanel
-          isExecuting={isExecutingBrowserInspection}
-          isPreviewing={isPreviewingBrowserInspection}
-          onExecute={executeBrowserInspection}
-          onPreview={previewBrowserInspection}
-          preview={browserInspectionPreview}
-          receipt={browserInspectionReceipt}
-          runs={taskRunRecords}
-        />
-
-        <AgentTeamPanel
-          arsenalPreview={arsenalPreview}
-          isPreviewing={isPreviewingAgentTeam}
-          onPreview={previewAgentTeam}
-          preview={agentTeamPreview}
-          runs={taskRunRecords}
-        />
-
-        <LocalAppBridgePanel
-          apps={localApps}
-          isExecuting={isExecutingLocalApp}
-          isPreviewing={isPreviewingLocalApp}
-          onExecute={executeLocalAppLaunch}
-          onPreview={previewLocalAppLaunch}
-          onSetAllowState={setLocalAppAllowState}
-          preview={localAppLaunchPreview}
-          receipt={localAppLaunchReceipt}
-          runs={taskRunRecords}
-          updatingAppId={updatingLocalAppId}
-        />
-
-        <NotificationGatewayPanel
-          isDelivering={isDeliveringNotification}
-          isPreviewing={isPreviewingNotification}
-          onDeliver={deliverNotification}
-          onPreview={previewNotification}
-          preview={notificationPreview}
-          receipt={notificationReceipt}
-          runs={taskRunRecords}
-        />
-
-        <section className="content-grid">
-          <TracePanel activity={activity} plan={plan} />
-          <PlanStepsPanel plan={plan} status={status} />
+          <section className="system-monitor" aria-label={t("cognitive.systemMonitor")}>
+            <div className="monitor-header">
+              <div>
+                <p className="eyebrow">{t("cognitive.systemMonitor")}</p>
+                <h3>{t("cognitive.cliActivity")}</h3>
+              </div>
+              <span>{activePlanId ?? "synapse-local"}</span>
+            </div>
+            <div className="monitor-stream">
+              <code>{activity}</code>
+            </div>
+          </section>
         </section>
-
-        <ExecutionPanel executionRecord={executionRecord} plan={plan} />
-        <ExecutorContractPanel
-          isLoading={isLoadingExecutorContract}
-          onRefresh={loadExecutorContractPreview}
-          preview={executorContractPreview}
-        />
-        <PolicyPanel plan={plan} />
-        <ContextBudgetPanel
-          draft={contextBudgetDraft}
-          isPreviewing={isPreviewingContextBudget}
-          onDraftChange={setContextBudgetDraft}
-          onPreview={previewContextBudget}
-          preview={contextBudgetPreview}
-        />
-
-        <AuditPanel
-          isReviewing={isReviewing}
-          onReviewPlan={reviewCurrentPlan}
-          plan={plan}
-          reviewReceipt={reviewReceipt}
-        />
-
-        <HistoryPanel
-          activePlanId={activePlanId}
-          history={history}
-          onClear={clearHistory}
-          onSelect={({ executionRecord, plan, planId, reviewReceipt }) => {
-            setPlan(plan);
-            setActivePlanId(planId);
-            setReviewReceipt(reviewReceipt);
-            setExecutionRecord(executionRecord);
-          }}
-        />
       </section>
     </main>
   );
