@@ -30,6 +30,9 @@ Internal design document versions are not public release numbers.
   and operations from `App.tsx` into a focused hook.
 - Added a guarded manual GitHub release workflow for versioned Windows
   installer releases with SHA-256 files.
+- Renamed the manual release workflow to `.github/workflows/manual-release.yml`,
+  toned down installer availability claims, added Rust check to public baseline
+  CI, and removed the obsolete V65 workflow file.
 
 ### Changed
 

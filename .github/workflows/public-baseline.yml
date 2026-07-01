@@ -41,3 +41,7 @@ jobs:
 
       - name: Build frontend
         run: npm.cmd run build
+
+      - name: Rust check
+        run: cargo check
+        working-directory: src-tauri

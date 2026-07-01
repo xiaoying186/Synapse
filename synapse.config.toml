@@ -81,16 +81,16 @@ to = ""
 
 [notifications.feishu]
 # Webhook URLs are local-only secrets. Preview can detect configured state;
-# delivery remains disabled in the V6.5 baseline.
+# delivery remains disabled in the public guarded baseline.
 webhook_url = ""
 
 [notifications.wechat]
 # Webhook URLs are local-only secrets. Preview can detect configured state;
-# delivery remains disabled in the V6.5 baseline.
+# delivery remains disabled in the public guarded baseline.
 webhook_url = ""
 
 [safety]
-# External side effects stay disabled by default in the V6.5 production baseline.
+# External side effects stay disabled by default in the public guarded baseline.
 external_delivery_enabled = false
 agent_execution_enabled = false
 

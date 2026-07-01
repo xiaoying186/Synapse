@@ -38,7 +38,8 @@ Xingtai and Baigong.
 - Read-only information/source health previews with quarantine boundaries.
 - Library Home, Production Readiness, Saga Recovery, and Security Center panels.
 - Preview-only Data Source Registry governance metadata.
-- Windows MSI distribution through GitHub Releases with SHA-256 verification.
+- Guarded Windows installer packaging path through manual GitHub Releases,
+  with SHA-256 verification when a release asset is attached.
 - Application-level English / Simplified Chinese language switching with
   synchronized translation-key checks.
 
@@ -64,9 +65,11 @@ claim boundaries.
 
 ## Quick Start
 
-For Windows desktop use, download the MSI from
-[GitHub Releases](https://github.com/xiaoying186/Synapse/releases/tag/v0.0.0)
-and verify it with the matching `.sha256` file before installing.
+For Windows desktop use, download an installer from
+[GitHub Releases](https://github.com/xiaoying186/Synapse/releases) only when a
+release includes an MSI or EXE asset and a matching `.sha256` file. Verify the
+checksum before installing. Current public installers are unsigned unless the
+release notes explicitly say otherwise.
 
 For development from source, install Node.js, Rust stable MSVC, WebView2, and
 the Tauri prerequisites for Windows.
@@ -89,7 +92,7 @@ cargo check --offline
 
 Synapse is not published as an npm package. `package.json` keeps
 `"private": true`; npm scripts are development/build entry points. Public
-distribution happens through GitHub Releases and desktop installers.
+distribution is limited to guarded GitHub Releases and desktop installers.
 
 ## Documentation
 
@@ -132,8 +135,9 @@ npm.cmd run release:doctor -- --json
 ```
 
 Maintainers can publish a versioned Windows installer with the manual
-`Synapse Manual Release` GitHub Actions workflow. Trigger it from the Actions
-tab, enter a SemVer-style version such as `0.0.1`, and verify that it creates a
+`Synapse Manual Release` GitHub Actions workflow
+(`.github/workflows/manual-release.yml`). Trigger it from the Actions tab, enter
+a SemVer-style version such as `0.0.1`, and verify that it creates a
 `v{version}` release with installer assets and matching `.sha256` files.
 
 The checked-in source remains on the `0.0.0` public baseline unless a separate

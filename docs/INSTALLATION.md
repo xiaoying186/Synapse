@@ -1,8 +1,9 @@
 # Installation
 
 Synapse `0.0.0` is an early public baseline. Windows users can install guarded
-local desktop builds from GitHub Releases when a Windows installer asset and a
-matching `.sha256` file are attached. Developers can also run it from source.
+local desktop preview builds from GitHub Releases only when a Windows installer
+asset and a matching `.sha256` file are attached. Developers can also run it
+from source.
 
 ## From GitHub Releases
 
@@ -40,9 +41,10 @@ Windows MSI packaging is configured and should only be distributed after:
 - release notes clearly state whether the installer is signed or unsigned.
 
 Maintainers can use the manual `Synapse Manual Release` GitHub Actions workflow
-to package and publish a versioned installer. The workflow is not triggered by
-ordinary pushes to `main`; it requires a manual `workflow_dispatch` version
-input and refuses to overwrite an existing tag.
+at `.github/workflows/manual-release.yml` to package and publish a versioned
+installer. The workflow is not triggered by ordinary pushes to `main`; it
+requires a manual `workflow_dispatch` version input and refuses to overwrite an
+existing tag.
 
 Debug MSI artifacts are packaging rehearsals and must not be distributed as
 official releases.

@@ -373,7 +373,7 @@ const githubWorkflow = readProtectedText(
   "GitHub Actions public baseline workflow",
 );
 const releaseWorkflow = readProtectedText(
-  ".github/workflows/release.yml",
+  ".github/workflows/manual-release.yml",
   "github-release-workflow-file",
   "GitHub Actions manual release workflow",
 );
@@ -924,7 +924,7 @@ if (releaseWorkflow) {
       ]
         .filter(Boolean)
         .join("; "),
-      "Restore .github/workflows/release.yml as a workflow_dispatch-only guarded release workflow.",
+      "Restore .github/workflows/manual-release.yml as a workflow_dispatch-only guarded release workflow.",
     );
   }
 }

@@ -163,7 +163,8 @@ Before publishing a GitHub snapshot or release:
 ## Manual GitHub Release Workflow
 
 Maintainers can publish a versioned Windows installer with the
-`Synapse Manual Release` workflow in GitHub Actions.
+`Synapse Manual Release` workflow in GitHub Actions:
+`.github/workflows/manual-release.yml`.
 
 Use it only after the public baseline CI is green:
 

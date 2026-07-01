@@ -82,6 +82,8 @@ design_private/
 Synapse_Design_V*.md
 Synapse-Design-V*.md
 !TODO-CODEX.md
+!docs/codex/
+!docs/codex/*.md
 !docs/codex/Codex_Workflow.md
 
 # Office / binary planning artifacts
