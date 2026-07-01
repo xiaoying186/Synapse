@@ -31,12 +31,12 @@ jobs:
           }
 
           $tag = "v$version"
-          git ls-remote --exit-code origin "refs/tags/$tag" | Out-Null
-          if ($LASTEXITCODE -eq 0) {
-            throw "Tag $tag already exists. Refusing to overwrite an existing release tag."
-          }
-          if ($LASTEXITCODE -ne 2) {
+          $existingTag = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
             throw "Could not check whether tag $tag exists."
+          }
+          if ($existingTag) {
+            throw "Tag $tag already exists. Refusing to overwrite an existing release tag."
           }
 
           "SYNAPSE_RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
