@@ -93,6 +93,11 @@ produce a cryptographic signature, but Windows will still report an untrusted
 publisher and `signtool verify /pa` will fail on GitHub Actions. Use a public
 CA-issued code-signing certificate for release assets.
 
+For preview or local testing only, maintainers may run `Synapse Manual Release`
+with `allow_unsigned = true`. The workflow then skips code signing, still
+generates SHA-256 files, and marks the GitHub Release notes as an unsigned
+preview installer. Do not present that asset as a trusted production installer.
+
 Before distributing outside a private local test:
 
 - Use a trusted code-signing certificate owned by the operator or release

@@ -7,6 +7,11 @@ on:
         description: "Public release version, for example 0.0.1"
         required: true
         type: string
+      allow_unsigned:
+        description: "Allow publishing an unsigned Windows installer for preview/testing"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -41,6 +46,7 @@ jobs:
 
           "SYNAPSE_RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "SYNAPSE_RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "SYNAPSE_ALLOW_UNSIGNED=${{ inputs.allow_unsigned }}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -97,6 +103,12 @@ jobs:
           WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
           WINDOWS_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL }}
         run: |
+          if ($env:SYNAPSE_ALLOW_UNSIGNED -eq "true") {
+            "SYNAPSE_SIGNING_MODE=unsigned-preview" | Out-File -FilePath $env:GITHUB_ENV -Append
+            Write-Host "Unsigned installer publishing was explicitly allowed for this manual release."
+            exit 0
+          }
+
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD)) {
             throw "Windows signing secrets are required: WINDOWS_SIGNING_CERT_BASE64 and WINDOWS_SIGNING_CERT_PASSWORD."
           }
@@ -155,6 +167,7 @@ jobs:
               throw "signtool verification failed for $($installer.FullName)."
             }
           }
+          "SYNAPSE_SIGNING_MODE=signed" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Collect installers and SHA-256 files
         id: artifacts
@@ -192,7 +205,7 @@ jobs:
       - name: Create release notes
         shell: pwsh
         run: |
-          node scripts/release-notes.mjs $env:SYNAPSE_RELEASE_VERSION "$env:RUNNER_TEMP/release-notes.md"
+          node scripts/release-notes.mjs $env:SYNAPSE_RELEASE_VERSION "$env:RUNNER_TEMP/release-notes.md" $env:SYNAPSE_SIGNING_MODE
 
       - name: Create GitHub Release
         shell: pwsh

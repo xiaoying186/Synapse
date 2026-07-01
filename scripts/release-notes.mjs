@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const version = process.argv[2]?.trim();
 const outputPath = process.argv[3]?.trim();
+const signingMode = process.argv[4]?.trim() || "signed";
 
 if (!version || !/^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$/.test(version)) {
   console.error("Usage: node scripts/release-notes.mjs <semver> <output-path>");
@@ -44,6 +45,9 @@ const releaseNotes = [
   "",
   "This release was created by the guarded manual release workflow.",
   `Release notes source: ${sourceHeading}.`,
+  signingMode === "unsigned-preview"
+    ? "Signing status: unsigned preview installer. Verify the SHA-256 file before local testing."
+    : "Signing status: signed Windows installer verified before upload.",
   "",
   "## Changelog",
   "",
@@ -57,7 +61,9 @@ const releaseNotes = [
   "- npm.cmd run i18n:check",
   "- npm.cmd run build",
   "- npm.cmd run tauri:build",
-  "- Windows installer code signing",
+  signingMode === "unsigned-preview"
+    ? "- Windows installer code signing skipped by explicit manual release input"
+    : "- Windows installer code signing",
   "- SHA-256 checksum generation",
   "",
   "Installers include adjacent SHA-256 checksum files.",
