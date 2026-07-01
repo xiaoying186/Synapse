@@ -10,6 +10,9 @@ Internal design document versions are not public release numbers.
 - Added changelog-driven GitHub Release notes for the manual release workflow.
 - Added mandatory Windows installer code signing to the manual release workflow
   before SHA-256 checksum generation and asset upload.
+- Added the Cognitive IDE layout with Knowledge, Thinking, and Execution views,
+  a left knowledge tree, right context rail, and bottom system monitor / CLI
+  activity stream.
 
 ## 0.0.1 - Guarded Manual Release Workflow
 
