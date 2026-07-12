@@ -378,7 +378,8 @@ fn powershell_path() -> PathBuf { PathBuf::from(std::env::var("WINDIR").unwrap_o
 fn hash_file(path: &std::path::Path) -> Result<String, store::StoreError> { let bytes = std::fs::read(path)?; Ok(hex::encode(Sha256::digest(bytes))) }
 fn embedded_script_hash() -> String { hex::encode(Sha256::digest(SYSTEM_INVENTORY_SCRIPT.as_bytes())) }
 fn encoded_system_inventory_script() -> String {
-    let bytes = SYSTEM_INVENTORY_SCRIPT.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
+    let command = format!("{SYSTEM_INVENTORY_SCRIPT}\nexit 0\n");
+    let bytes = command.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>();
     BASE64_STANDARD.encode(bytes)
 }
 fn read_bounded<R: Read>(reader: R) -> Result<(String, bool), std::io::Error> { let mut bytes = Vec::new(); reader.take(64 * 1024 + 1).read_to_end(&mut bytes)?; let truncated = bytes.len() > 64 * 1024; bytes.truncate(64 * 1024); Ok((String::from_utf8_lossy(&bytes).to_string(), truncated)) }
