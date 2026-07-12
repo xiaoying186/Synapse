@@ -1003,7 +1003,15 @@ async function assertNotificationMockReceipt(page, name) {
   await page.getByTestId("notification-reconciliation-receipt").waitFor({ state: "visible", timeout: 10_000 });
   await page.getByText("confirmed-not-delivered").first().waitFor({ state: "visible", timeout: 10_000 });
   await page.getByTestId("notification-channel-select").selectOption("feishu");
-  await page.getByTestId("notification-run-select").selectOption({ index: 1 });
+  const scheduledRunOption = page
+    .getByTestId("notification-run-select")
+    .locator("option")
+    .filter({ hasText: `UI smoke scheduled loop ${name}` });
+  const scheduledRunId = await scheduledRunOption.getAttribute("value");
+  if (!scheduledRunId) {
+    throw new Error("Scheduled Feishu-enabled task run was not available for notification smoke.");
+  }
+  await page.getByTestId("notification-run-select").selectOption(scheduledRunId);
   await page.getByTestId("notification-subject-input").fill(`UI smoke Feishu receipt ${name}`);
   await page.getByTestId("notification-body-input").fill("Verify mock webhook receipt without external delivery.");
   await page.getByTestId("notification-preview-button").click();
