@@ -270,7 +270,11 @@ export function CapabilityPreviewPanel({
             />
             <span>{text("Online")}</span>
           </label>
-          <button type="submit" disabled={isLoadingAggregation}>
+          <button
+            type="submit"
+            data-testid="aggregation-preview-button"
+            disabled={isLoadingAggregation}
+          >
             {isLoadingAggregation ? text("Previewing") : text("Preview")}
           </button>
         </form>
@@ -896,6 +900,9 @@ export function CapabilityPreviewPanel({
                     <li key={blocker}>{text(blocker)}</li>
                   ))}
                 </ul>
+                <small>
+                  {text("Denied")}: {providerReceiptTaskArtifactPreflight.denied_actions.map((action) => text(action)).join(", ")}
+                </small>
               </div>
             )}
             {providerReceiptTaskArtifactReceipt && (
@@ -959,6 +966,9 @@ export function CapabilityPreviewPanel({
                     <li key={blocker}>{text(blocker)}</li>
                   ))}
                 </ul>
+                <small>
+                  {text("Denied")}: {providerArtifactZhishuAdmissionPreflight.denied_actions.map((action) => text(action)).join(", ")}
+                </small>
                 <div className="inline-actions">
                   <button
                     type="button"

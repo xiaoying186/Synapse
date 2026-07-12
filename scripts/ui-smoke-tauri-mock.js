@@ -1845,6 +1845,12 @@
       }
       case "execute_skill_script":
         throw new Error("script execution is disabled in UI smoke");
+      case "preview_information_aggregation":
+        return dailyBriefingPreview({
+          title: "UI smoke aggregation preview",
+          query: args.query || "UI smoke aggregation query",
+          online_enabled: Boolean(args.onlineEnabled),
+        }).aggregation;
       case "preview_daily_briefing":
         return dailyBriefingPreview(args.template || {});
       case "review_daily_briefing_scheduled_archive": {

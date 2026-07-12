@@ -268,11 +268,11 @@ async function main() {
   try {
     await runBrowserSmoke(playwright);
   } catch (error) {
+    if (requireBrowserSmoke) {
+      throw error;
+    }
     const captured = await runPythonBrowserSmoke();
     if (!captured) {
-      if (requireBrowserSmoke) {
-        throw error;
-      }
       console.log(
         `[SKIP] browser-smoke: ${firstLine(error instanceof Error ? error.message : String(error))}; static UI smoke checks passed.`,
       );
@@ -694,7 +694,7 @@ async function assertLocalAppLaunchPreflight(page) {
 }
 
 async function assertBrowserWriteStagingPreflight(page, name) {
-  await page.getByTestId("nav-bai-gong").click();
+  await openExecutionWorkspace(page);
   await page.locator(".browser-automation-panel").scrollIntoViewIfNeeded();
   await page.getByPlaceholder("Allowlisted http(s) URL").fill(`https://example.com/form-${name}`);
   await page.locator(".browser-automation-panel select").selectOption({ index: 1 });
@@ -758,8 +758,18 @@ async function assertSourceHealthCheck(page) {
   await page.getByTestId("source-health-status").first().waitFor({ state: "visible", timeout: 10_000 });
 }
 
+async function openExecutionWorkspace(page) {
+  await page.getByTestId("cognitive-tab-execution").click();
+  await page.getByTestId("execution-workspace").waitFor({ state: "visible", timeout: 10_000 });
+}
+
 async function assertProviderAdapterLoopbackReceipt(page) {
-  await page.getByTestId("nav-bai-gong").click();
+  await openExecutionWorkspace(page);
+  await page.getByPlaceholder("Query to assess before retrieval").fill("UI smoke provider receipt");
+  await page.getByTestId("aggregation-preview-button").click();
+  await page
+    .getByTestId("aggregation-evidence-validation")
+    .waitFor({ state: "visible", timeout: 10_000 });
   await page.getByTestId("provider-adapter-loopback-receipt-button").scrollIntoViewIfNeeded();
   await page.getByTestId("provider-adapter-loopback-receipt-button").click();
   await page
@@ -895,7 +905,7 @@ async function assertProviderAdapterLoopbackReceipt(page) {
 }
 
 async function assertDeviceSyncImportPreflight(page) {
-  await page.getByTestId("nav-bai-gong").click();
+  await openExecutionWorkspace(page);
   await page.getByTestId("device-sync-panel").scrollIntoViewIfNeeded();
   await page.getByText("Export sync package").click();
   await page.getByTestId("device-sync-import-preflight-button").click();

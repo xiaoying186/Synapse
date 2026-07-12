@@ -815,6 +815,7 @@ function App() {
                   key={view}
                   type="button"
                   role="tab"
+                  data-testid={`cognitive-tab-${view}`}
                   aria-selected={activeCognitiveView === view}
                   className={activeCognitiveView === view ? "cognitive-tab active" : "cognitive-tab"}
                   onClick={() => setActiveCognitiveView(view)}
@@ -1043,7 +1044,7 @@ function App() {
             )}
 
             {activeCognitiveView === "execution" && (
-              <section className="cognitive-view">
+              <section className="cognitive-view" data-testid="execution-workspace">
                 <section className="task-center-grid">
                   <DirectionSetupPanel
                     description={directionDescription}
