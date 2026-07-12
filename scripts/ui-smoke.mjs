@@ -713,7 +713,7 @@ async function assertBrowserWriteStagingPreflight(page, name) {
 }
 
 async function assertSourceEnablementPreflight(page) {
-  await page.getByTestId("nav-bai-gong").click();
+  await page.getByTestId("nav-zhi-shu").click();
   await page.locator(".source-registry-panel").scrollIntoViewIfNeeded();
   await page.getByTestId("source-enablement-preflight-button").first().click();
   await page
@@ -730,7 +730,7 @@ async function assertSourceEnablementPreflight(page) {
 }
 
 async function assertSourceEnablementReview(page) {
-  await page.getByTestId("nav-bai-gong").click();
+  await page.getByTestId("nav-zhi-shu").click();
   await page.locator(".source-registry-panel").scrollIntoViewIfNeeded();
   await page.getByTestId("source-enablement-review-button").first().click();
   await page
@@ -747,7 +747,7 @@ async function assertSourceEnablementReview(page) {
 }
 
 async function assertSourceHealthCheck(page) {
-  await page.getByTestId("nav-bai-gong").click();
+  await page.getByTestId("nav-zhi-shu").click();
   await page.locator(".source-registry-panel").scrollIntoViewIfNeeded();
   await page.getByTestId("source-health-preflight-button").first().click();
   await page.getByTestId("source-health-preflight-result").waitFor({ state: "visible", timeout: 10_000 });
