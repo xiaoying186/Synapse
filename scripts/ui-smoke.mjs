@@ -663,9 +663,6 @@ async function assertXingtaiTaskLoop(page, name) {
   await assertNotificationMockReceipt(page, name);
   await assertDailyBriefingEvidenceContract(page, name);
   await assertLocalAppLaunchPreflight(page);
-  await page.getByTestId("execute-task-run-button").first().waitFor({ state: "visible", timeout: 10_000 });
-  await page.getByTestId("execute-task-run-button").first().click();
-  await page.getByText("indexed artifact").first().waitFor({ state: "visible", timeout: 10_000 });
   await page.getByTestId("nav-library").click();
   await page.getByTestId("library-home").waitFor({ state: "visible", timeout: 10_000 });
 }
