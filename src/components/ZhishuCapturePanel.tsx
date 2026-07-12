@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+
 type ZhishuCapturePanelProps = {
   draft: string;
   isSaving: boolean;
@@ -19,12 +21,14 @@ export function ZhishuCapturePanel({
   onTagsChange,
   tags,
 }: ZhishuCapturePanelProps) {
+  const { text } = useI18n();
+
   return (
-    <section className="panel zhishu-capture-panel">
+    <section className="panel zhishu-capture-panel" data-testid="zhishu-capture-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Zhishu</p>
-          <h3>Knowledge candidate</h3>
+          <p className="eyebrow">{text("Zhishu")}</p>
+          <h3>{text("Knowledge candidate")}</h3>
         </div>
       </div>
       <form
@@ -35,25 +39,31 @@ export function ZhishuCapturePanel({
         }}
       >
         <textarea
+          data-testid="zhishu-capture-input"
           value={draft}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
-          placeholder="Capture a knowledge item, rule, skill flow, or script interface"
+          placeholder={text("Capture a knowledge item, rule, skill flow, or script interface")}
         />
-        <select value={kind} onChange={(event) => onKindChange(event.currentTarget.value)}>
-          <option value="knowledge">Knowledge</option>
-          <option value="reference">Reference</option>
-          <option value="rule">Rule</option>
-          <option value="skill">Skill</option>
-          <option value="skill-flow">Skill flow</option>
-          <option value="script-interface">Script interface</option>
+        <select
+          data-testid="zhishu-kind-select"
+          value={kind}
+          onChange={(event) => onKindChange(event.currentTarget.value)}
+        >
+          <option value="knowledge">{text("Knowledge")}</option>
+          <option value="reference">{text("Reference")}</option>
+          <option value="rule">{text("Rule")}</option>
+          <option value="skill">{text("Skill")}</option>
+          <option value="skill-flow">{text("Skill flow")}</option>
+          <option value="script-interface">{text("Script interface")}</option>
         </select>
         <input
+          data-testid="zhishu-tags-input"
           value={tags}
           onChange={(event) => onTagsChange(event.currentTarget.value)}
-          placeholder="tags, separated, by commas"
+          placeholder={text("tags, separated, by commas")}
         />
-        <button type="submit" disabled={isSaving}>
-          {isSaving ? "Saving" : "Capture"}
+        <button type="submit" data-testid="zhishu-capture-button" disabled={isSaving}>
+          {isSaving ? text("Saving") : text("Capture")}
         </button>
       </form>
     </section>

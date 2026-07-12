@@ -315,6 +315,10 @@ textarea {
   padding: 14px;
 }
 
+.cognitive-view-loading {
+  min-height: 240px;
+}
+
 .context-rail {
   display: grid;
   gap: 12px;
@@ -668,6 +672,63 @@ textarea {
   font-size: 18px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.settings-grid article {
+  min-width: 0;
+  border: 1px solid #d0d8e2;
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.settings-grid span,
+.settings-grid small {
+  color: #5f6f82;
+}
+
+.settings-grid strong {
+  display: block;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 1px solid #d0d8e2;
+  padding-top: 14px;
+}
+
+.settings-editor label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #5f6f82;
+}
+
+.settings-editor input,
+.settings-editor select {
+  min-width: 0;
+}
+
+.settings-toggle,
+.settings-confirmation,
+.settings-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-actions {
+  flex-wrap: wrap;
+}
+
 .text-action {
   border: 1px solid #cbd5df;
   border-radius: 6px;
@@ -751,6 +812,18 @@ form button:disabled {
 .task-center-panel {
   display: grid;
   gap: 14px;
+}
+
+.task-center-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.task-center-grid > .panel {
+  min-width: 0;
+  position: relative;
 }
 
 .experience-form,
@@ -1398,6 +1471,17 @@ input:focus {
   min-height: 44px;
 }
 
+.direction-channels {
+  grid-column: 1 / -1;
+  min-width: min(100%, 220px);
+}
+
+.direction-form > button[type="submit"] {
+  grid-column: 1 / -1;
+  justify-self: end;
+  min-width: 120px;
+}
+
 .direction-channel-options .online-toggle {
   min-width: 86px;
 }
@@ -1588,6 +1672,37 @@ input:focus {
   font-size: 12px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+.artifact-review-card {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+  border: 1px solid #cbd5df;
+  border-radius: 6px;
+  padding: 8px;
+  background: #f7fafc;
+}
+
+.artifact-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.artifact-review-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.artifact-review-result span {
+  border: 1px solid #d7e0e9;
+  border-radius: 999px;
+  padding: 4px 7px;
+  color: #394a5d;
+  background: #ffffff;
+  font-size: 11px;
 }
 
 .task-run-actions {
@@ -2518,6 +2633,63 @@ input:focus {
   white-space: nowrap;
 }
 
+.current-section-card {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(155, 183, 207, 0.35);
+  border-radius: 6px;
+  padding: 12px;
+  color: #d8e8f6;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.current-section-card span {
+  color: #9bb7cf;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.current-section-card strong {
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.library-acceptance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  gap: 12px;
+}
+
+.library-acceptance-card {
+  display: grid;
+  gap: 8px;
+  min-height: 116px;
+  border: 1px solid #d7e0e9;
+  border-radius: 6px;
+  padding: 14px;
+  background: #f9fbfd;
+}
+
+.library-acceptance-card span {
+  color: #647486;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.library-acceptance-card strong {
+  color: #203244;
+  font-size: 16px;
+}
+
+.library-acceptance-card small {
+  color: #647486;
+}
+
+.category-task-list {
+  grid-column: 1 / -1;
+  min-height: 92px;
+}
+
 @media (max-width: 760px) {
   .shell,
   .cognitive-shell {
@@ -2553,6 +2725,7 @@ input:focus {
   .cognitive-overview,
   .cognitive-ide-grid,
   .cognitive-tabs,
+  .library-acceptance-grid,
   .system-monitor,
   .content-grid,
   .audit-grid,
@@ -2577,6 +2750,7 @@ input:focus {
   .agent-team-members,
   .local-app-launch-form,
   .notification-form,
+  .task-center-grid,
   .direction-form,
   .plan-summary {
     grid-template-columns: 1fr;
@@ -2607,6 +2781,10 @@ input:focus {
   }
 
   .source-gate-item {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 
@@ -2665,6 +2843,10 @@ input:focus {
 
   .history-item {
     grid-template-columns: 1fr;
+  }
+
+  .category-task-list {
+    grid-column: auto;
   }
 
   .cognitive-main {

@@ -22,24 +22,35 @@ guarded production use.
 - `[sync.relay].enabled = false`.
 - Feishu and WeChat webhook URLs are empty.
 - Tauri CSP is not `null`.
-- Tauri bundle target is MSI for the Windows local baseline.
+- Tauri bundle targets include NSIS for the Windows public preview installer
+  and MSI for administrator or enterprise deployment candidates.
 
 ## Build Gates
 
 - `npm.cmd run preflight` passes.
 - `cargo fmt --check` passes through the full preflight and GitHub baseline CI.
+- `cargo test task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission`
+  passes before release.
+- `cargo test production_readiness` passes before release.
 - `npm.cmd run smoke:ui` passes; when Playwright is available, desktop and
   mobile screenshots are captured under `.tmp/ui-smoke/`.
-- Windows MSI release packaging has WiX available on PATH or pre-cached for
-  Tauri bundling.
+- Windows NSIS release packaging succeeds through `npm.cmd run
+  tauri:build:release`.
 - `CHANGELOG.md` has either a matching `## {version}` section or a reviewed
   `## Unreleased` section for the GitHub Release notes.
 - GitHub Secrets include `WINDOWS_SIGNING_CERT_BASE64` and
   `WINDOWS_SIGNING_CERT_PASSWORD` before running the manual release workflow.
-- `npm.cmd run wix:diagnose` passes on the release machine before MSI
+- The manual release workflow synchronizes `package.json`,
+  `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` before
+  `npm.cmd run build`, so bundled frontend assets show the release version.
+- `npm.cmd run release:acceptance` verifies installer artifacts and SHA-256
+  sidecars.
+- `npm.cmd run release:smoke:installer` installs, launches, and uninstalls the
+  NSIS installer, verifies the Start menu shortcut target, and writes
+  `.tmp/release-evidence/installer-smoke.json`.
+- `npm.cmd run wix:diagnose` passes on the release machine before optional MSI
   packaging.
-- `npm.cmd run tauri -- build --debug` can produce a debug MSI.
-- Release MSI builds are verified separately before distribution.
+- Optional MSI builds are verified separately before distribution.
 - Signing, verification, hash, changelog, and distribution notes in
   `docs/RELEASE_DISTRIBUTION_NOTES.md` are followed before sharing an MSI
   outside private local testing.
@@ -61,8 +72,11 @@ guarded production use.
   decision for automation.
 - `.tmp/release-evidence/release-summary.md` is reviewed before publishing
   release notes or a GitHub snapshot.
-- Release review confirms any debug MSI under `src-tauri/target/debug/` is only
-  a packaging rehearsal and is not distributed as the formal release artifact.
+- Release review confirms any debug MSI or NSIS artifact under
+  `src-tauri/target/debug/` is only a packaging rehearsal and is not distributed
+  as the formal release artifact.
+- Debug MSI artifacts remain packaging rehearsals only; this wording is kept as
+  a public release-boundary anchor for older checks.
 - Release evidence includes the documentation-boundary summary for the release
   checklist, distribution notes, README, and public-baseline capability matrix.
 
@@ -88,8 +102,8 @@ guarded production use.
   `npm.cmd run git:bootstrap` first, then explicitly run
   `npm.cmd run git:bootstrap -- --repair-empty-git --yes`.
 - `git status --short` lists only intentional source and documentation changes.
-- `.codegraph/`, `.synapse/`, `dist/`, `target/`, MSI bundles, local databases,
-  and logs are not committed.
+- `.codegraph/`, `.synapse/`, `dist/`, `target/`, installer bundles, local
+  databases, and logs are not committed.
 - No SMTP credentials, webhook URLs, `.env` files, or local user data are
   committed.
 - Do not include internal design documents, monetization plans, private

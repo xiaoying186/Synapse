@@ -9,9 +9,40 @@ export type SystemStatus = {
   max_steps: number;
   step_timeout_seconds: number;
   mode_lock_auto: boolean;
+  runtime_config_path: string;
+  storage_data_root: string;
   config_warnings: string[];
   capabilities: CapabilityStatus[];
   scheduler_status: SchedulerStatus;
+};
+
+export type RuntimeSettingsPreview = {
+  state: string;
+  config_path: string;
+  mode: string;
+  storage_data_dir: string;
+  scheduler_background_loop_enabled: boolean;
+  scheduler_poll_interval_seconds: number;
+  restart_required: boolean;
+  editable_fields: string[];
+  blocked_fields: string[];
+  gates: string[];
+};
+
+export type RuntimeSettingsUpdateRequest = {
+  mode: string;
+  storage_data_dir: string;
+  scheduler_background_loop_enabled: boolean;
+  scheduler_poll_interval_seconds: number;
+  confirmed: boolean;
+};
+
+export type RuntimeSettingsUpdateReceipt = {
+  state: string;
+  config_path: string;
+  backup_path: string;
+  changed_fields: string[];
+  restart_required: boolean;
 };
 
 export type SchedulerStatus = {
@@ -429,6 +460,7 @@ export type AggregationPreview = {
   retrieval_contract: RetrievalContract;
   observations: SourceObservation[];
   confidence: ConfidenceAssessment;
+  evidence_validation: EvidenceValidationContract;
 };
 
 export type DailyBriefingTemplate = {
@@ -443,13 +475,123 @@ export type DailyBriefingPreview = {
   rendered_markdown: string;
   sections: string[];
   aggregation: AggregationPreview;
+  evidence_contract: DailyBriefingEvidenceContract;
   archive_gate: string;
+};
+
+export type DailyBriefingEvidenceContract = {
+  source_count: number;
+  quarantined_source_count: number;
+  required_cross_checks: number;
+  confidence_score: number;
+  conflict_level: string;
+  freshness_state: string;
+  admission_state: string;
+  archive_state: string;
+  external_delivery_started: boolean;
+  durable_zhishu_write: boolean;
+  evidence_validation: EvidenceValidationContract;
+  provider_receipt: ProviderAdapterExecutionReceipt;
+  provider_admission_preflight: ProviderReceiptAdmissionPreflight;
+  provider_review_queue_preview: ProviderReceiptAdmissionQueuePreview;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type DailyBriefingLiveSourceStagingPreflight = {
+  state: string;
+  query: string;
+  requested_live_sources: boolean;
+  external_network_started: boolean;
+  durable_zhishu_write: boolean;
+  automatic_delivery_started: boolean;
+  required_cross_checks: number;
+  source_quarantine_required: boolean;
+  gate_enabled: boolean;
+  configured_source_url_present: boolean;
+  configured_source_count: number;
+  provider_gates: LiveSourceProviderGate[];
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type LiveSourceProviderGate = {
+  provider_id: string;
+  provider_kind: string;
+  allow_state: string;
+  credential_policy: string;
+  network_policy: string;
+  rate_limit_policy: string;
+  audit_policy: string;
+  quarantine_policy: string;
+  rollback_policy: string;
+  required_approval: string;
+  external_network_started: boolean;
 };
 
 export type DailyBriefingArchiveReceipt = {
   preview: DailyBriefingPreview;
+  observations: SourceObservationRecord[];
   artifact: TaskArtifactRecord;
   run: TaskRunRecord;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+};
+
+export type DailyBriefingDeliveryReview = {
+  artifact_id: string;
+  run_id: string;
+  state: string;
+  notification_previews: NotificationPreview[];
+  delivery_started: boolean;
+  external_network_started: boolean;
+  durable_zhishu_write: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type DailyBriefingScheduledArchiveReview = {
+  generated_at_ms: number;
+  state: string;
+  eligible_run_ids: string[];
+  pending_approval_run_ids: string[];
+  blocked_run_ids: string[];
+  automatic_archive_started: boolean;
+  external_network_started: boolean;
+  durable_zhishu_write: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type DailyBriefingLiveSourceReceipt = {
+  preflight: DailyBriefingLiveSourceStagingPreflight;
+  http_receipts: HttpSourceReceipt[];
+  evidence_validation: EvidenceValidationContract;
+  artifact: TaskArtifactRecord;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+  external_network_started: boolean;
+  durable_zhishu_write: boolean;
+  automatic_delivery_started: boolean;
+};
+
+export type EvidenceValidationContract = {
+  observation_count: number;
+  source_count: number;
+  distinct_claim_count: number;
+  required_cross_checks: number;
+  cross_check_state: string;
+  conflict_state: string;
+  quarantine_state: string;
+  admission_decision: string;
+  summary_allowed: boolean;
+  durable_write_allowed: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
 };
 
 export type DiagnosticCheck = {
@@ -490,6 +632,51 @@ export type ComputerDiagnosticArchiveReceipt = {
   report: ComputerDiagnosticReport;
   artifact: TaskArtifactRecord;
   run: TaskRunRecord;
+};
+
+export type CleanupCandidate = {
+  id: string;
+  label: string;
+  location_kind: string;
+  path_preview: string;
+  estimated_reclaimable_bytes: number;
+  confidence: string;
+  action_policy: string;
+};
+
+export type CleanupDryRunPreview = {
+  generated_at_ms: number;
+  state: string;
+  candidate_count: number;
+  estimated_reclaimable_bytes: number;
+  deleted_bytes: number;
+  mutation_started: boolean;
+  requires_restore_point: boolean;
+  requires_explicit_approval: boolean;
+  candidates: CleanupCandidate[];
+  denied_actions: string[];
+  safety_boundary: string[];
+};
+
+export type CleanupMutationPreflight = {
+  generated_at_ms: number;
+  state: string;
+  cleanup_state: string;
+  candidate_count: number;
+  restore_point_required: boolean;
+  restore_point_available: boolean;
+  explicit_approval_required: boolean;
+  audit_required: boolean;
+  rollback_plan_required: boolean;
+  requires_admin: boolean;
+  system_mutation_started: boolean;
+  file_deletion_started: boolean;
+  registry_write_started: boolean;
+  process_kill_started: boolean;
+  candidates: CleanupCandidate[];
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
 };
 
 export type WebAppShellDescriptor = {
@@ -534,6 +721,24 @@ export type CodebaseMemoryPreview = {
   denied_actions: string[];
 };
 
+export type CodebaseMemoryAdmissionPreflight = {
+  generated_at_ms: number;
+  state: string;
+  adapter_state: string;
+  source_id: string;
+  process_started: boolean;
+  repository_scanned: boolean;
+  file_content_ingested: boolean;
+  l2_write_started: boolean;
+  requires_index_freshness_check: boolean;
+  requires_source_scope_review: boolean;
+  requires_human_summary_review: boolean;
+  requires_zhishu_admission_review: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
 export type PermissionMemoryCandidate = {
   id: string;
   scope: string;
@@ -554,6 +759,116 @@ export type PermissionMemoryPreview = {
   gates: string[];
   non_reusable_risks: string[];
   auto_grants_permissions: boolean;
+};
+
+export type PermissionReusePreflight = {
+  generated_at_ms: number;
+  state: string;
+  candidate_id: string;
+  candidate_state: string;
+  permission_level: string;
+  scope: string;
+  tool_scope: string;
+  requested_action: string;
+  auto_grant_started: boolean;
+  permission_reused: boolean;
+  durable_policy_write_started: boolean;
+  requires_same_scope: boolean;
+  requires_fresh_audit_reference: boolean;
+  requires_explicit_review: boolean;
+  requires_expiry_check: boolean;
+  high_risk_blocked: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type SkillManifest = {
+  skill_id: string;
+  name: string;
+  owner_center: string;
+  governed_by: string;
+  version: string;
+  manifest_state: string;
+  execution_mode: string;
+  script_adapter: string;
+  permission_level: string;
+  admission_policy: string;
+  rollback_policy: string;
+  tests_required: string[];
+  safety_gates: string[];
+};
+
+export type SkillExecutionContract = {
+  skill_id: string;
+  state: string;
+  process_started: boolean;
+  script_content_read: boolean;
+  durable_zhishu_write: boolean;
+  requires_explicit_approval: boolean;
+  requires_test_receipt: boolean;
+  output_policy: string;
+  denied_actions: string[];
+};
+
+export type SkillLibraryPreview = {
+  generated_at_ms: number;
+  state: string;
+  registry_scope: string;
+  manifests: SkillManifest[];
+  execution_contracts: SkillExecutionContract[];
+  gates: string[];
+  denied_actions: string[];
+  process_started: boolean;
+  script_content_read: boolean;
+  durable_zhishu_write: boolean;
+};
+
+export type SkillScriptExecutionPreflight = {
+  generated_at_ms: number;
+  state: string;
+  skill_id: string;
+  script_adapter: string;
+  manifest_state: string;
+  process_started: boolean;
+  script_content_read: boolean;
+  durable_zhishu_write: boolean;
+  filesystem_mutation_started: boolean;
+  network_call_started: boolean;
+  requires_allowlisted_script_path: boolean;
+  requires_script_hash: boolean;
+  requires_explicit_approval: boolean;
+  requires_test_receipt: boolean;
+  requires_quarantine_output: boolean;
+  requires_rollback_plan: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+  run_id: string;
+  task_approval_state: string;
+  executor_enabled: boolean;
+  script_path_allowlisted: boolean;
+  script_hash_verified: boolean;
+  expected_sha256: string;
+  actual_sha256: string;
+  powershell_available: boolean;
+};
+
+export type SkillScriptExecutionRequest = {
+  skill_id: string;
+  run_id: string;
+};
+
+export type SkillScriptExecutionReceipt = {
+  preflight: SkillScriptExecutionPreflight;
+  state: string;
+  exit_code: number;
+  output_sha256: string;
+  output_truncated: boolean;
+  artifact: TaskArtifactRecord;
+  rollback_snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type StrategyConfig = {
@@ -667,7 +982,208 @@ export type HttpSourceReceipt = {
   response_bytes: number;
   observation: SourceObservation;
   confidence: ConfidenceAssessment;
+  evidence_validation: EvidenceValidationContract;
+  provider_receipt: ProviderAdapterExecutionReceipt;
   gates: string[];
+};
+
+export type ProviderAdapterExecutionReceipt = {
+  receipt_id: string;
+  provider_id: string;
+  adapter_kind: string;
+  execution_mode: string;
+  execution_state: string;
+  source_url: string;
+  source_sha256: string;
+  response_bytes: number;
+  external_network_started: boolean;
+  credential_read_started: boolean;
+  process_started: boolean;
+  durable_write_started: boolean;
+  audit_recorded: boolean;
+  quarantine_recorded: boolean;
+  rollback_required: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type ProviderReceiptAdmissionPreflight = {
+  generated_at_ms: number;
+  state: string;
+  provider_id: string;
+  receipt_id: string;
+  candidate_id: string;
+  candidate_kind: string;
+  source_sha256: string;
+  audit_recorded: boolean;
+  quarantine_recorded: boolean;
+  summary_candidate_created: boolean;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  requires_human_review: boolean;
+  requires_evidence_validation: boolean;
+  requires_source_trust_review: boolean;
+  requires_conflict_review: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type ProviderReceiptAdmissionQueuePreview = {
+  generated_at_ms: number;
+  state: string;
+  queue_id: string;
+  provider_id: string;
+  receipt_id: string;
+  candidate_count: number;
+  pending_review_count: number;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  candidates: ProviderReceiptAdmissionPreflight[];
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type ProviderReceiptReviewCandidate = {
+  id: string;
+  created_at_ms: number;
+  provider_id: string;
+  receipt_id: string;
+  candidate_kind: string;
+  source_sha256: string;
+  review_state: string;
+  queue_state: string;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  requires_human_review: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+  reviewed_at_ms?: number | null;
+  review_decision?: string | null;
+};
+
+export type ProviderReceiptReviewQueueReceipt = {
+  state: string;
+  candidate: ProviderReceiptReviewCandidate;
+  queue_preview: ProviderReceiptAdmissionQueuePreview;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+};
+
+export type ProviderReceiptReviewDecisionReceipt = {
+  state: string;
+  candidate: ProviderReceiptReviewCandidate;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type ProviderReceiptTaskArtifactPreflight = {
+  generated_at_ms: number;
+  state: string;
+  candidate_id: string;
+  review_state: string;
+  provider_id: string;
+  receipt_id: string;
+  source_sha256: string;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  requires_approved_provider_review: boolean;
+  requires_task_artifact_review: boolean;
+  requires_zhishu_admission_review: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type ProviderReceiptTaskArtifactReceipt = {
+  state: string;
+  candidate: ProviderReceiptReviewCandidate;
+  artifact: TaskArtifactRecord;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type ProviderArtifactZhishuAdmissionPreflight = {
+  generated_at_ms: number;
+  state: string;
+  artifact_id: string;
+  artifact_type: string;
+  reference_id: string;
+  source_sha256: string;
+  quarantine_state: string;
+  task_artifact_write_started: boolean;
+  durable_zhishu_write_started: boolean;
+  requires_artifact_review: boolean;
+  requires_source_trust_review: boolean;
+  requires_zhishu_admission_review: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type ProviderArtifactAdmissionReview = {
+  id: string;
+  created_at_ms: number;
+  artifact_id: string;
+  artifact_type: string;
+  reference_id: string;
+  source_sha256: string;
+  review_state: string;
+  review_decision: string;
+  reviewed_at_ms: number;
+  durable_zhishu_candidate_write_started: boolean;
+  confirmed_knowledge_write_started: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type ProviderArtifactAdmissionReviewReceipt = {
+  state: string;
+  review: ProviderArtifactAdmissionReview;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  durable_zhishu_candidate_write_started: boolean;
+  confirmed_knowledge_write_started: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type ProviderArtifactZhishuCandidateReceipt = {
+  state: string;
+  review: ProviderArtifactAdmissionReview;
+  artifact: TaskArtifactRecord;
+  memory_item: MemoryItem;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+  durable_zhishu_candidate_write_started: boolean;
+  confirmed_knowledge_write_started: boolean;
+  gates: string[];
+  denied_actions: string[];
+};
+
+export type ProviderArtifactZhishuFinalReviewReceipt = {
+  state: string;
+  memory_item: MemoryItem;
+  decision: string;
+  confirmed_knowledge_write_started: boolean;
+  gates: string[];
+  denied_actions: string[];
 };
 
 export type SourcePolicy = {
@@ -721,7 +1237,12 @@ export type SourceRegistryEntry = {
   credential_policy: string;
   observation_policy: string;
   freshness_policy: string;
+  verification_policy: string;
+  quarantine_policy: string;
   risk_level: string;
+  last_health_check_at_ms: number | null;
+  last_health_state: string;
+  last_health_observation_id: string | null;
 };
 
 export type SourceRegistryPreview = {
@@ -731,6 +1252,75 @@ export type SourceRegistryPreview = {
   entries: SourceRegistryEntry[];
   gates: string[];
   denied_actions: string[];
+};
+
+export type SourceEnablementPreflight = {
+  generated_at_ms: number;
+  state: string;
+  source_id: string;
+  source_type: string;
+  owner_module: string;
+  current_status: string;
+  enabled: boolean;
+  network_started: boolean;
+  credential_read_started: boolean;
+  fetch_started: boolean;
+  storage_write_started: boolean;
+  shared_config_write_started: boolean;
+  requires_owner_review: boolean;
+  requires_auth_policy_review: boolean;
+  requires_network_profile_review: boolean;
+  requires_rate_limit_review: boolean;
+  requires_storage_policy_review: boolean;
+  requires_verification_plan: boolean;
+  requires_quarantine_plan: boolean;
+  requires_injection_defense: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
+export type SourceRegistryApproval = {
+  source_id: string;
+  enabled: boolean;
+  reviewed_at_ms: number;
+  review_state: string;
+};
+
+export type SourceEnablementReviewReceipt = {
+  approval: SourceRegistryApproval;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+};
+
+export type SourceHealthCheckRequest = {
+  source_id: string;
+  approved: boolean;
+};
+
+export type SourceHealthCheckPreflight = {
+  generated_at_ms: number;
+  state: string;
+  source_id: string;
+  enabled: boolean;
+  configured_url_present: boolean;
+  explicit_approval: boolean;
+  network_started: boolean;
+  ready: boolean;
+  blockers: string[];
+  gates: string[];
+};
+
+export type SourceHealthCheckReceipt = {
+  state: string;
+  source_id: string;
+  status_code: number;
+  response_bytes: number;
+  observation: SourceObservationRecord;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type ArsenalPreview = {
@@ -809,6 +1399,25 @@ export type AgentExecutionReceipt = {
   output_truncated: boolean;
   artifact: TaskArtifactRecord;
   run: TaskRunRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
+};
+
+export type RealAgentPreflightBlocker = {
+  id: string;
+  state: string;
+  detail: string;
+};
+
+export type RealAgentExecutionPreflight = {
+  state: string;
+  dry_run: AgentDryRunReceipt;
+  execution_enabled: boolean;
+  process_started: boolean;
+  task_content_sent: boolean;
+  required_approvals: string[];
+  blockers: RealAgentPreflightBlocker[];
+  gates: string[];
 };
 
 export type BrowserInspectionRequest = {
@@ -829,8 +1438,37 @@ export type BrowserInspectionPreview = {
   task_approval_state: string;
   allowed_hosts: string[];
   capture_screenshot: boolean;
+  action_policy: BrowserActionPolicy;
   gates: string[];
   process_started: boolean;
+};
+
+export type BrowserActionPolicy = {
+  mode: string;
+  read_actions: string[];
+  write_actions_allowed: string[];
+  write_actions_denied: string[];
+  approval_required_for_write: boolean;
+  anti_injection_policy: string;
+  audit_policy: string;
+  rollback_policy: string;
+  denied_reasons: string[];
+};
+
+export type BrowserWriteActionStagingPreflight = {
+  run_id: string;
+  url: string;
+  host: string;
+  state: string;
+  process_started: boolean;
+  web_mutation_started: boolean;
+  task_content_sent: boolean;
+  approval_required: boolean;
+  action_policy: BrowserActionPolicy;
+  requested_write_actions: string[];
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
 };
 
 export type BrowserInspectionResult = {
@@ -848,6 +1486,27 @@ export type BrowserInspectionReceipt = {
   run: TaskRunRecord;
 };
 
+export type AgentAdapterSmokeItem = {
+  tool_id: string;
+  tool_label: string;
+  discovery_state: string;
+  allow_state: string;
+  command_contract: string[];
+  execution_enabled: boolean;
+  process_started: boolean;
+  gates: string[];
+};
+
+export type AgentAdapterSmokeReport = {
+  state: string;
+  agent_count: number;
+  detected_count: number;
+  execution_enabled: boolean;
+  process_started: boolean;
+  adapters: AgentAdapterSmokeItem[];
+  gates: string[];
+};
+
 export type AgentTeamRequest = {
   run_id: string;
   team_mode: "linear" | "roundtable";
@@ -855,6 +1514,8 @@ export type AgentTeamRequest = {
   goal: string;
   participant_tool_ids: string[];
   max_rounds: number;
+  max_agent_calls?: number;
+  cancel_after_steps?: number;
 };
 
 export type AgentTeamStep = {
@@ -873,10 +1534,116 @@ export type AgentTeamPreview = {
   state: string;
   max_rounds: number;
   estimated_agent_calls: number;
+  max_agent_calls: number;
+  cancel_after_steps?: number | null;
   participants: ToolDescriptor[];
   steps: AgentTeamStep[];
   gates: string[];
   process_started: boolean;
+};
+
+export type AgentTeamStepReceipt = {
+  order: number;
+  phase: string;
+  participant_tool_id: string;
+  output_ref: string;
+  output_sha256: string;
+  process_started: boolean;
+  admission_state: string;
+};
+
+export type AgentTeamExecutionReceipt = {
+  preview: AgentTeamPreview;
+  state: string;
+  execution_mode: string;
+  calls_completed: number;
+  calls_blocked: number;
+  stop_reason: string;
+  process_started: boolean;
+  steps: AgentTeamStepReceipt[];
+  artifact: TaskArtifactRecord;
+};
+
+export type AgentTeamRealStepPreflight = {
+  order: number;
+  phase: string;
+  participant_tool_id: string;
+  state: string;
+  execution_enabled: boolean;
+  process_started: boolean;
+  task_content_sent: boolean;
+  blockers: RealAgentPreflightBlocker[];
+  gates: string[];
+};
+
+export type AgentTeamRealExecutionPreflight = {
+  preview: AgentTeamPreview;
+  state: string;
+  execution_enabled: boolean;
+  process_started: boolean;
+  task_content_sent: boolean;
+  executable_step_count: number;
+  blocked_step_count: number;
+  step_preflights: AgentTeamRealStepPreflight[];
+  required_approvals: string[];
+  gates: string[];
+};
+
+export type AgentTeamRealStagingStepReceipt = {
+  order: number;
+  phase: string;
+  participant_tool_id: string;
+  state: string;
+  input_sha256: string;
+  blocker_ids: string[];
+  process_started: boolean;
+  task_content_sent: boolean;
+  admission_state: string;
+};
+
+export type AgentTeamRealStagingReceipt = {
+  preflight: AgentTeamRealExecutionPreflight;
+  state: string;
+  execution_mode: string;
+  staged_step_count: number;
+  executable_step_count: number;
+  blocked_step_count: number;
+  process_started: boolean;
+  task_content_sent: boolean;
+  steps: AgentTeamRealStagingStepReceipt[];
+  artifact: TaskArtifactRecord;
+};
+
+export type AgentTeamRealExecutionStepReceipt = {
+  order: number;
+  phase: string;
+  participant_tool_id: string;
+  state: string;
+  exit_code: number;
+  output_truncated: boolean;
+  artifact_id: string;
+  output_sha256: string;
+  process_started: boolean;
+  task_content_sent: boolean;
+  admission_state: string;
+};
+
+export type AgentTeamRealExecutionReceipt = {
+  preflight: AgentTeamRealExecutionPreflight;
+  state: string;
+  execution_mode: string;
+  calls_completed: number;
+  calls_blocked: number;
+  stop_reason: string;
+  process_started: boolean;
+  task_content_sent: boolean;
+  steps: AgentTeamRealExecutionStepReceipt[];
+  artifact: TaskArtifactRecord;
+  failure_detail?: string | null;
+  cancellation_observed: boolean;
+  rollback_snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type LocalAppDescriptor = {
@@ -906,11 +1673,42 @@ export type LocalAppLaunchPreview = {
   process_started: boolean;
 };
 
+export type LocalAppLaunchPreflight = {
+  generated_at_ms: number;
+  state: string;
+  launch_state: string;
+  app_id: string;
+  run_id: string;
+  process_started: boolean;
+  argument_count: number;
+  user_arguments_allowed: boolean;
+  credentials_read: boolean;
+  window_content_read: boolean;
+  requires_bridge_allowlist: boolean;
+  requires_app_allowlist: boolean;
+  requires_task_approval: boolean;
+  requires_explicit_launch_confirmation: boolean;
+  audit_required: boolean;
+  session_blind: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
 export type LocalAppLaunchReceipt = {
   preview: LocalAppLaunchPreview;
   state: string;
   process_id: number;
   artifact: TaskArtifactRecord;
+  audit_event: AuditEventRecord;
+};
+
+export type LocalAppAllowStateReceipt = {
+  apps: LocalAppDescriptor[];
+  changed_app: LocalAppDescriptor;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type NotificationRequest = {
@@ -932,6 +1730,69 @@ export type NotificationPreview = {
   credentials_present: boolean;
   gates: string[];
   delivery_started: boolean;
+  webhook_staging_policy?: WebhookStagingPolicy | null;
+  webhook_staging_envelope?: WebhookStagingEnvelope | null;
+};
+
+export type WebhookStagingPolicy = {
+  mode: string;
+  channel: string;
+  signature_policy: string;
+  retry_policy: string;
+  redaction_policy: string;
+  error_classes: string[];
+  external_delivery_gate: string;
+  approval_required: boolean;
+  external_delivery_started: boolean;
+  network_started: boolean;
+  denied_actions: string[];
+};
+
+export type WebhookStagingEnvelope = {
+  contract: string;
+  channel: string;
+  idempotency_key: string;
+  payload_sha256: string;
+  body_preview_chars: number;
+  destination_configured: boolean;
+  endpoint_redaction: string;
+  required_headers: string[];
+  admission_state: string;
+  expires_after_secs: number;
+  external_delivery_started: boolean;
+  network_started: boolean;
+};
+
+export type WebhookStagingPreflight = {
+  channel: string;
+  state: string;
+  endpoint_scope: string;
+  endpoint_configured: boolean;
+  endpoint_allowed_for_staging: boolean;
+  signature_material_present: boolean;
+  external_delivery_gate_enabled: boolean;
+  approval_required: boolean;
+  delivery_started: boolean;
+  network_started: boolean;
+  checks: string[];
+  blocked_reasons: string[];
+};
+
+export type WebhookProductionPreflight = {
+  channel: string;
+  state: string;
+  endpoint_scope: string;
+  endpoint_configured: boolean;
+  endpoint_allowed_for_production: boolean;
+  signature_material_present: boolean;
+  external_delivery_gate_enabled: boolean;
+  approval_required: boolean;
+  audit_required: boolean;
+  redaction_required: boolean;
+  delivery_started: boolean;
+  network_started: boolean;
+  checks: string[];
+  blocked_reasons: string[];
 };
 
 export type NotificationReceipt = {
@@ -939,6 +1800,30 @@ export type NotificationReceipt = {
   state: string;
   server_response: string;
   artifact: TaskArtifactRecord;
+  delivery_attempt?: NotificationDeliveryAttempt | null;
+  audit_event?: AuditEventRecord | null;
+};
+
+export type NotificationDeliveryAttempt = {
+  id: string;
+  idempotency_key: string;
+  run_id: string;
+  channel: string;
+  state: string;
+  artifact_id?: string | null;
+  audit_event_id?: string | null;
+  detail: string;
+  created_at_ms: number;
+  updated_at_ms: number;
+};
+
+export type NotificationDeliveryReconciliationReceipt = {
+  attempt: NotificationDeliveryAttempt;
+  decision: string;
+  retry_allowed: boolean;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type ContextBudgetDecision = {
@@ -1080,10 +1965,34 @@ export type DeviceSyncImportPreview = {
   gates: string[];
 };
 
+export type DeviceSyncImportApplyPreflight = {
+  generated_at_ms: number;
+  package_id: string;
+  source_device_id: string;
+  local_device_id: string;
+  state: string;
+  preview_state: string;
+  can_apply: boolean;
+  allow_replace: boolean;
+  requires_explicit_replace: boolean;
+  import_started: boolean;
+  durable_write_started: boolean;
+  backup_required: boolean;
+  audit_required: boolean;
+  rollback_snapshot_required: boolean;
+  cloud_source_of_truth: boolean;
+  gates: string[];
+  blockers: string[];
+  denied_actions: string[];
+};
+
 export type DeviceSyncImportReceipt = {
   preview: DeviceSyncImportPreview;
   imported: ZhishuRepositoryImportReceipt;
   state: DeviceSyncState;
+  snapshot: SnapshotRecord;
+  audit_event: AuditEventRecord;
+  saga: SagaTransaction;
 };
 
 export type RelayPreview = {

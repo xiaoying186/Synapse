@@ -12,7 +12,7 @@ export function ProductionReadinessPanel({
   onRefresh,
   preview,
 }: ProductionReadinessPanelProps) {
-  const { t } = useI18n();
+  const { t, text } = useI18n();
 
   return (
     <section className="panel production-readiness-panel">
@@ -29,11 +29,11 @@ export function ProductionReadinessPanel({
       {preview ? (
         <>
           <div className="retrieval-contract">
-            <span>{preview.state}</span>
-            <strong>{preview.summary}</strong>
+            <span>{text(preview.state)}</span>
+            <strong>{text(preview.summary)}</strong>
             <div className="policy-tiers">
               {preview.gates.map((gate) => (
-                <span key={gate}>{gate}</span>
+                <span key={gate}>{text(gate)}</span>
               ))}
             </div>
           </div>
@@ -42,12 +42,12 @@ export function ProductionReadinessPanel({
             {preview.checks.map((check) => (
               <article className="source-gate-item" key={check.id}>
                 <div>
-                  <span>{check.severity}</span>
-                  <strong>{check.label}</strong>
+                  <span>{text(check.severity)}</span>
+                  <strong>{text(check.label)}</strong>
                 </div>
-                <b>{check.state}</b>
-                <small>{check.detail}</small>
-                {check.remediation && <em>{t("production.fix")}: {check.remediation}</em>}
+                <b>{text(check.state)}</b>
+                <small>{text(check.detail)}</small>
+                {check.remediation && <em>{t("production.fix")}: {text(check.remediation)}</em>}
               </article>
             ))}
           </div>

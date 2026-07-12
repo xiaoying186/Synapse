@@ -19,6 +19,10 @@ pub(crate) fn status_from_config(config: config::RuntimeConfig) -> SystemStatus 
         max_steps: config.max_steps,
         step_timeout_seconds: config.step_timeout_seconds,
         mode_lock_auto: config.mode_lock_auto,
+        runtime_config_path: config::runtime_config_path_for_status()
+            .display()
+            .to_string(),
+        storage_data_root: crate::store::active_data_root().display().to_string(),
         config_warnings: config.warnings,
         capabilities,
         scheduler_status,

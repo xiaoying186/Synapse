@@ -8,13 +8,13 @@ from source.
 ## From GitHub Releases
 
 1. Open the repository's GitHub Releases page.
-2. Download the Windows installer, such as `Synapse_*_x64_en-US.msi`, and the
-   matching `.sha256` file.
-3. Verify the MSI hash before installing:
+2. Download the recommended Windows preview installer,
+   `Synapse_*_x64-setup.exe`, and the matching `.sha256` file.
+3. Verify the installer hash before installing:
 
 ```powershell
-Get-FileHash .\Synapse_*_x64_en-US.msi -Algorithm SHA256
-Get-Content .\Synapse_*_x64_en-US.msi.sha256
+Get-FileHash .\Synapse_*_x64-setup.exe -Algorithm SHA256
+Get-Content .\Synapse_*_x64-setup.exe.sha256
 ```
 
 The two SHA-256 values must match.
@@ -33,22 +33,28 @@ npm.cmd run tauri:dev
 
 ## Installer Status
 
-Windows MSI packaging is configured and should only be distributed after:
+Windows NSIS packaging is the default public preview route and should only be
+distributed after:
 
 - `npm.cmd run preflight:release` passes;
-- `npm.cmd run tauri:build` creates an MSI matching the current public version;
+- `npm.cmd run tauri:build:release` creates an NSIS installer matching the
+  current public version;
 - the installer is code-signed and verified before SHA-256 hash generation;
-- `npm.cmd run release:evidence` records the MSI and SHA-256 hash;
+- `npm.cmd run release:acceptance` verifies the installer and SHA-256 hash;
+- `npm.cmd run release:smoke:installer` installs, launches, and uninstalls the
+  NSIS installer successfully;
 - release notes are generated from `CHANGELOG.md`.
 
 Maintainers can use the manual `Synapse Manual Release` GitHub Actions workflow
 at `.github/workflows/manual-release.yml` to package and publish a versioned
 installer. The workflow is not triggered by ordinary pushes to `main`; it
-requires a manual `workflow_dispatch` version input, requires Windows
-code-signing secrets, and refuses to overwrite an existing tag.
+requires a manual `workflow_dispatch` version input and refuses to overwrite an
+existing tag. Signed releases require Windows code-signing secrets; unsigned
+preview releases must be explicitly allowed by the workflow input.
 
-Debug MSI artifacts are packaging rehearsals and must not be distributed as
-official releases.
+MSI artifacts, when present, are administrator or enterprise deployment
+candidates. Debug MSI artifacts and debug NSIS artifacts are packaging
+rehearsals and must not be distributed as official releases.
 
 ## What This Baseline Does Not Install
 

@@ -339,6 +339,7 @@ fn preview_from_with_checks(
         gates: vec![
             "no-direct-agent-execution".to_string(),
             "agent-team-blueprint-preview-only".to_string(),
+            "xingtai-task-loop-acceptance".to_string(),
             "feishu-wechat-preview-only".to_string(),
             "local-app-launch-only-with-explicit-approval".to_string(),
             "browser-readonly-allowlisted-quarantine".to_string(),
@@ -366,6 +367,9 @@ fn local_safety_checks(project_root: &Path) -> Vec<ReadinessCheck> {
     vec![
         secret_guard_check(project_root),
         agent_repository_trust_check(project_root),
+        task_loop_acceptance_check(project_root),
+        i18n_coverage_check(project_root),
+        release_artifact_freshness_check(project_root),
     ]
 }
 
@@ -472,6 +476,312 @@ fn agent_repository_trust_check(project_root: &Path) -> ReadinessCheck {
     }
 }
 
+fn task_loop_acceptance_check(project_root: &Path) -> ReadinessCheck {
+    let path = project_root
+        .join("src-tauri")
+        .join("src")
+        .join("store")
+        .join("task_center.rs");
+    let Ok(source) = fs::read_to_string(path) else {
+        return check_with_remediation(
+            "xingtai-task-loop-acceptance",
+            "Xingtai task loop acceptance",
+            "review-required",
+            "warning",
+            "Task Center store source could not be read; the local task loop acceptance verifier is not visible."
+                .to_string(),
+            "Restore src-tauri/src/store/task_center.rs and run cargo test task_center.".to_string(),
+        );
+    };
+    let required_items = [
+        "task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission",
+        "request_task_run_at",
+        "review_task_run_at",
+        "execute_task_run_at",
+        "review_task_candidate_at",
+        "receipt.run.lifecycle_state, \"succeeded\"",
+        "receipt.run.execution_state, \"completed\"",
+        "receipt.artifacts[0].reference_id",
+        "promoted.scope, \"L1 Working\"",
+        "promoted.admission_rule, \"task-candidate-review\"",
+    ];
+    let missing = required_items
+        .iter()
+        .filter(|item| !source.contains(**item))
+        .copied()
+        .collect::<Vec<_>>();
+    if missing.is_empty() {
+        check(
+            "xingtai-task-loop-acceptance",
+            "Xingtai task loop acceptance",
+            "pass",
+            "info",
+            "Task loop acceptance covers direction request, approval, local execution, artifact indexing, candidate review, and L1 memory admission."
+                .to_string(),
+        )
+    } else {
+        check_with_remediation(
+            "xingtai-task-loop-acceptance",
+            "Xingtai task loop acceptance",
+            "review-required",
+            "warning",
+            format!(
+                "Task loop acceptance verifier is incomplete; missing {}.",
+                missing.join(" / ")
+            ),
+            "Restore the end-to-end verifier and run cargo test task_center.".to_string(),
+        )
+    }
+}
+
+fn i18n_coverage_check(project_root: &Path) -> ReadinessCheck {
+    let component_dir = project_root.join("src").join("components");
+    let app_file = project_root.join("src").join("App.tsx");
+    let translations_file = project_root
+        .join("src")
+        .join("i18n")
+        .join("translations.ts");
+    let localize_file = project_root
+        .join("src")
+        .join("i18n")
+        .join("localizeText.ts");
+    let package_file = project_root.join("package.json");
+
+    let mut files = Vec::new();
+    if app_file.exists() {
+        files.push(app_file);
+    }
+    if let Ok(entries) = fs::read_dir(&component_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|value| value.to_str()) == Some("tsx") {
+                files.push(path);
+            }
+        }
+    }
+
+    if files.is_empty() {
+        return check_with_remediation(
+            "i18n-coverage",
+            "I18n coverage",
+            "review-required",
+            "warning",
+            "No frontend TSX files were found for i18n coverage reporting.".to_string(),
+            "Restore src/App.tsx and src/components before production UI review.".to_string(),
+        );
+    }
+
+    let localized_count = files
+        .iter()
+        .filter(|path| {
+            fs::read_to_string(path)
+                .map(|content| {
+                    content.contains("useI18n")
+                        || content.contains("text(")
+                        || content.contains("t(")
+                        || path.file_name().and_then(|value| value.to_str())
+                            == Some("LanguageSelector.tsx")
+                })
+                .unwrap_or(false)
+        })
+        .count();
+    let coverage = (localized_count * 100) / files.len();
+
+    let has_sync_script = fs::read_to_string(&package_file)
+        .map(|content| content.contains("\"i18n:check\"") && content.contains("i18n-check.mjs"))
+        .unwrap_or(false);
+    let has_translation_sources = translations_file.exists() && localize_file.exists();
+
+    if coverage >= 90 && has_sync_script && has_translation_sources {
+        return check(
+            "i18n-coverage",
+            "I18n coverage",
+            "pass",
+            "info",
+            format!(
+                "{localized_count}/{} frontend TSX files use the i18n layer ({}%). npm.cmd run i18n:check is available.",
+                files.len(),
+                coverage
+            ),
+        );
+    }
+
+    let mut gaps = Vec::new();
+    if coverage < 90 {
+        gaps.push(format!("i18n file coverage is {coverage}%"));
+    }
+    if !has_sync_script {
+        gaps.push("i18n:check script is missing".to_string());
+    }
+    if !has_translation_sources {
+        gaps.push("translation source files are missing".to_string());
+    }
+
+    check_with_remediation(
+        "i18n-coverage",
+        "I18n coverage",
+        "review-required",
+        "warning",
+        format!(
+            "I18n coverage needs review: {}.",
+            gaps.join("; ")
+        ),
+        "Localize remaining user-facing TSX files and run npm.cmd run i18n:check before production release.".to_string(),
+    )
+}
+
+fn release_artifact_freshness_check(project_root: &Path) -> ReadinessCheck {
+    let bundle_dir = project_root
+        .join("src-tauri")
+        .join("target")
+        .join("release")
+        .join("bundle")
+        .join("nsis");
+    let installer = newest_file_with_extension(&bundle_dir, "exe");
+    let Some(installer) = installer else {
+        return check_with_remediation(
+            "release-artifact-freshness",
+            "Release artifact freshness",
+            "review-required",
+            "warning",
+            "No NSIS release installer was found under src-tauri/target/release/bundle/nsis."
+                .to_string(),
+            "Run npm.cmd run tauri:build:release, npm.cmd run release:sha256, and npm.cmd run release:smoke:installer before publishing.".to_string(),
+        );
+    };
+    let sha_path = PathBuf::from(format!("{}.sha256", installer.display()));
+    if !sha_path.exists() {
+        return check_with_remediation(
+            "release-artifact-freshness",
+            "Release artifact freshness",
+            "review-required",
+            "warning",
+            format!(
+                "NSIS installer exists, but the SHA-256 sidecar is missing: {}.",
+                sha_path.display()
+            ),
+            "Run npm.cmd run release:sha256 before publishing.".to_string(),
+        );
+    }
+
+    let Ok(installer_mtime) = modified_time(&installer) else {
+        return check_with_remediation(
+            "release-artifact-freshness",
+            "Release artifact freshness",
+            "review-required",
+            "warning",
+            "NSIS installer timestamp could not be read.".to_string(),
+            "Rebuild the installer with npm.cmd run tauri:build:release.".to_string(),
+        );
+    };
+
+    let stale_inputs = release_artifact_inputs(project_root)
+        .into_iter()
+        .filter(|path| {
+            modified_time(path)
+                .map(|mtime| mtime > installer_mtime)
+                .unwrap_or(false)
+        })
+        .map(|path| {
+            path.strip_prefix(project_root)
+                .unwrap_or(&path)
+                .display()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+
+    if stale_inputs.is_empty() {
+        return check(
+            "release-artifact-freshness",
+            "Release artifact freshness",
+            "pass",
+            "info",
+            format!(
+                "Current NSIS installer and SHA-256 sidecar are present: {}.",
+                installer
+                    .strip_prefix(project_root)
+                    .unwrap_or(&installer)
+                    .display()
+            ),
+        );
+    }
+
+    check_with_remediation(
+        "release-artifact-freshness",
+        "Release artifact freshness",
+        "review-required",
+        "warning",
+        format!(
+            "NSIS installer is older than release-relevant input(s): {}.",
+            stale_inputs.join(", ")
+        ),
+        "Rebuild with npm.cmd run tauri:build:release, then run npm.cmd run release:sha256 and npm.cmd run release:smoke:installer.".to_string(),
+    )
+}
+
+fn newest_file_with_extension(directory: &Path, extension: &str) -> Option<PathBuf> {
+    fs::read_dir(directory)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some(extension))
+        .filter_map(|path| modified_time(&path).ok().map(|mtime| (path, mtime)))
+        .max_by_key(|(_, mtime)| *mtime)
+        .map(|(path, _)| path)
+}
+
+fn release_artifact_inputs(project_root: &Path) -> Vec<PathBuf> {
+    let mut inputs = vec![
+        project_root.join("package.json"),
+        project_root.join("package-lock.json"),
+        project_root.join("vite.config.ts"),
+        project_root.join("src-tauri").join("tauri.conf.json"),
+        project_root.join("src-tauri").join("Cargo.toml"),
+        project_root.join("src-tauri").join("Cargo.lock"),
+        project_root.join("scripts").join("release-acceptance.mjs"),
+        project_root.join("scripts").join("release-sha256.mjs"),
+        project_root.join("scripts").join("installer-smoke.ps1"),
+        project_root
+            .join(".github")
+            .join("workflows")
+            .join("manual-release.yml"),
+    ];
+    inputs.extend(files_under(
+        &project_root.join("src"),
+        &["ts", "tsx", "css"],
+    ));
+    inputs.extend(files_under(
+        &project_root.join("src-tauri").join("src"),
+        &["rs"],
+    ));
+    inputs
+}
+
+fn files_under(directory: &Path, extensions: &[&str]) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    collect_files_under(directory, extensions, &mut files);
+    files
+}
+
+fn collect_files_under(directory: &Path, extensions: &[&str], files: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files_under(&path, extensions, files);
+        } else if path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|extension| extensions.contains(&extension))
+            .unwrap_or(false)
+        {
+            files.push(path);
+        }
+    }
+}
+
 fn git_dirty_state(project_root: &Path) -> Option<String> {
     let output = Command::new("git")
         .args(["status", "--porcelain"])
@@ -546,6 +856,8 @@ struct ReleaseEvidence {
 
 #[derive(Debug, Deserialize)]
 struct ReleaseReview {
+    #[serde(default)]
+    state: String,
     ready: bool,
     blockers: Vec<ReleaseBlocker>,
     artifact_readiness: ArtifactReadiness,
@@ -560,6 +872,14 @@ struct ReleaseBlocker {
 struct ArtifactReadiness {
     release_msi_count: u64,
     has_distributable_msi: bool,
+    #[serde(default)]
+    signing_mode: Option<String>,
+    #[serde(default)]
+    unsigned_preview_allowed: bool,
+    #[serde(default)]
+    signed_installer_count: u64,
+    #[serde(default)]
+    all_release_installers_signed: bool,
 }
 
 fn release_evidence_check(project_root: &Path) -> ReadinessCheck {
@@ -617,6 +937,31 @@ fn release_evidence_check(project_root: &Path) -> ReadinessCheck {
                 .to_string(),
         );
     }
+    if evidence.release_review.ready
+        && evidence.release_review.artifact_readiness.signing_label() == "unsigned-preview"
+        && evidence
+            .release_review
+            .artifact_readiness
+            .unsigned_preview_allowed
+    {
+        return check_with_remediation(
+            "release-evidence-status",
+            "Release evidence",
+            "review-required",
+            "warning",
+            format!(
+                "Release evidence state {} permits an unsigned preview with {} distributable MSI artifact(s); it is not signed production distribution. signing mode {}; unsigned preview allowed: {}; signed installer(s) {}; all release installers signed: {}.",
+                evidence.release_review.state,
+                evidence.release_review.artifact_readiness.release_msi_count,
+                evidence.release_review.artifact_readiness.signing_label(),
+                evidence.release_review.artifact_readiness.unsigned_preview_allowed,
+                evidence.release_review.artifact_readiness.signed_installer_count,
+                evidence.release_review.artifact_readiness.all_release_installers_signed,
+            ),
+            "Use a trusted Authenticode certificate for production distribution, or keep the artifact explicitly labeled as an unsigned preview."
+                .to_string(),
+        );
+    }
     if evidence.release_review.ready {
         return check(
             "release-evidence-status",
@@ -624,8 +969,12 @@ fn release_evidence_check(project_root: &Path) -> ReadinessCheck {
             "pass",
             "info",
             format!(
-                "Release evidence is current and marks release ready with {} distributable MSI artifact(s).",
-                evidence.release_review.artifact_readiness.release_msi_count
+                "Release evidence is current and marks release ready with {} distributable MSI artifact(s); signing mode {}; unsigned preview allowed: {}; signed installer(s) {}; all release installers signed: {}.",
+                evidence.release_review.artifact_readiness.release_msi_count,
+                evidence.release_review.artifact_readiness.signing_label(),
+                evidence.release_review.artifact_readiness.unsigned_preview_allowed,
+                evidence.release_review.artifact_readiness.signed_installer_count,
+                evidence.release_review.artifact_readiness.all_release_installers_signed
             ),
         );
     }
@@ -650,13 +999,25 @@ fn release_evidence_check(project_root: &Path) -> ReadinessCheck {
         "release-blocked",
         "warning",
         format!(
-            "Release evidence is current but not ready: blocker(s) [{}]; {}.",
+            "Release evidence is current but not ready: blocker(s) [{}]; {}; signing mode {}; unsigned preview allowed: {}; signed installer(s) {}; all release installers signed: {}.",
             blocker_ids.join(", "),
-            artifact_detail
+            artifact_detail,
+            evidence.release_review.artifact_readiness.signing_label(),
+            evidence.release_review.artifact_readiness.unsigned_preview_allowed,
+            evidence.release_review.artifact_readiness.signed_installer_count,
+            evidence.release_review.artifact_readiness.all_release_installers_signed
         ),
         "Resolve the release blockers, run npm.cmd run release:evidence, then review npm.cmd run release:doctor -- --json."
             .to_string(),
     )
+}
+
+impl ArtifactReadiness {
+    fn signing_label(&self) -> &str {
+        self.signing_mode
+            .as_deref()
+            .unwrap_or("unknown-signing-mode")
+    }
 }
 
 fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> Vec<String> {
@@ -670,7 +1031,9 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "src-tauri/Cargo.toml",
         "src-tauri/Cargo.lock",
         "src-tauri/tauri.conf.json",
+        "src-tauri/src/lib.rs",
         "src-tauri/src/domains/agent_harness.rs",
+        "src-tauri/src/domains/notification_gateway.rs",
         "src-tauri/src/domains/context_budget.rs",
         "src-tauri/src/domains/library_home.rs",
         "src-tauri/src/domains/computer_diagnostics.rs",
@@ -686,7 +1049,10 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "src/components/WebAppShellPanel.tsx",
         "src/components/CodebaseMemoryPanel.tsx",
         "src/components/PermissionMemoryPanel.tsx",
+        "src/components/NotificationGatewayPanel.tsx",
         "src/components/SourceRegistryPanel.tsx",
+        "src/app/useNotificationGateway.ts",
+        "src/i18n/localizeText.ts",
         "synapse.config.toml",
         "README.md",
         "LICENSE",
@@ -707,6 +1073,7 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "docs/RELEASE_DISTRIBUTION_NOTES.md",
         "docs/SOURCE_REGISTRY.md",
         ".github/workflows/public-baseline.yml",
+        ".github/workflows/manual-release.yml",
         ".github/ISSUE_TEMPLATE/bug_report.yml",
         ".github/ISSUE_TEMPLATE/documentation_fix.yml",
         ".github/ISSUE_TEMPLATE/feature_request.yml",
@@ -719,6 +1086,7 @@ fn stale_release_evidence_inputs(project_root: &Path, evidence_path: &Path) -> V
         "scripts/git-diagnose.mjs",
         "scripts/wix-diagnose.mjs",
         "scripts/ui-smoke.mjs",
+        "scripts/ui-smoke-tauri-mock.js",
         "src/App.tsx",
         "src/App.css",
         ".tmp/ui-smoke/desktop.png",
@@ -954,7 +1322,49 @@ mod tests {
                 "info",
                 "test repository trust pass".to_string(),
             ),
+            check(
+                "xingtai-task-loop-acceptance",
+                "Xingtai task loop acceptance",
+                "pass",
+                "info",
+                "test task loop acceptance pass".to_string(),
+            ),
         ]
+    }
+
+    #[test]
+    fn task_loop_acceptance_check_surfaces_xingtai_verifier() {
+        let root = env::temp_dir().join(format!(
+            "synapse-production-readiness-task-loop-test-{}",
+            store::now_millis()
+        ));
+        let store_dir = root.join("src-tauri").join("src").join("store");
+        fs::create_dir_all(&store_dir).unwrap();
+        fs::write(
+            store_dir.join("task_center.rs"),
+            r#"
+            fn task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission() {
+                request_task_run_at();
+                review_task_run_at();
+                execute_task_run_at();
+                review_task_candidate_at();
+                assert_eq!(receipt.run.lifecycle_state, "succeeded");
+                assert_eq!(receipt.run.execution_state, "completed");
+                assert_eq!(receipt.artifacts[0].reference_id, "artifact-1");
+                assert_eq!(promoted.scope, "L1 Working");
+                assert_eq!(promoted.admission_rule, "task-candidate-review");
+            }
+            "#,
+        )
+        .unwrap();
+
+        let check = task_loop_acceptance_check(&root);
+
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(check.id, "xingtai-task-loop-acceptance");
+        assert_eq!(check.state, "pass");
+        assert!(check.detail.contains("direction request"));
+        assert!(check.detail.contains("L1 memory admission"));
     }
 
     #[test]
@@ -1071,11 +1481,16 @@ mod tests {
             r#"{
               "schema_version": 1,
               "release_review": {
+                "state": "blocked-before-release",
                 "ready": false,
                 "blockers": [{ "id": "git-repository" }, { "id": "windows-msi-tooling" }],
                 "artifact_readiness": {
                   "release_msi_count": 0,
-                  "has_distributable_msi": false
+                  "has_distributable_msi": false,
+                  "signing_mode": "signed",
+                  "unsigned_preview_allowed": false,
+                  "signed_installer_count": 0,
+                  "all_release_installers_signed": false
                 }
               }
             }"#,
@@ -1088,9 +1503,53 @@ mod tests {
         assert_eq!(check.state, "release-blocked");
         assert!(check.detail.contains("git-repository"));
         assert!(check.detail.contains("no distributable release MSI"));
+        assert!(check.detail.contains("signing mode signed"));
+        assert!(check.detail.contains("unsigned preview allowed: false"));
+        assert!(check.detail.contains("all release installers signed: false"));
         assert!(check
             .remediation
             .unwrap()
             .contains("release:doctor -- --json"));
+    }
+
+    #[test]
+    fn release_evidence_unsigned_preview_requires_local_review() {
+        let root = env::temp_dir().join(format!(
+            "synapse-production-readiness-evidence-ready-signing-test-{}",
+            store::now_millis()
+        ));
+        let evidence_dir = root.join(".tmp").join("release-evidence");
+        fs::create_dir_all(&evidence_dir).unwrap();
+        fs::write(
+            evidence_dir.join("release-evidence.json"),
+            r#"{
+              "schema_version": 1,
+              "release_review": {
+                "state": "ready-for-unsigned-preview-review",
+                "ready": true,
+                "blockers": [],
+                "artifact_readiness": {
+                  "release_msi_count": 1,
+                  "has_distributable_msi": true,
+                  "signing_mode": "unsigned-preview",
+                  "unsigned_preview_allowed": true,
+                  "signed_installer_count": 0,
+                  "all_release_installers_signed": false
+                }
+              }
+            }"#,
+        )
+        .unwrap();
+
+        let check = release_evidence_check(&root);
+
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(check.state, "review-required");
+        assert!(check.detail.contains("ready-for-unsigned-preview-review"));
+        assert!(check.detail.contains("not signed production distribution"));
+        assert!(check.detail.contains("signing mode unsigned-preview"));
+        assert!(check.detail.contains("unsigned preview allowed: true"));
+        assert!(check.detail.contains("signed installer(s) 0"));
+        assert!(check.detail.contains("all release installers signed: false"));
     }
 }

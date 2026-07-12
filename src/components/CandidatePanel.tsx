@@ -1,4 +1,5 @@
 import type { TaskCandidate } from "../types";
+import { useI18n } from "../i18n";
 
 type CandidateDecision = "accepted" | "rejected" | "deepen";
 
@@ -9,16 +10,18 @@ type CandidatePanelProps = {
 };
 
 export function CandidatePanel({ candidates, onReview, reviewingCandidateId }: CandidatePanelProps) {
+  const { text } = useI18n();
+
   return (
     <section className="panel candidate-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Task candidates</p>
-          <h3>Recent matches</h3>
+          <p className="eyebrow">{text("Task candidates")}</p>
+          <h3>{text("Recent matches")}</h3>
         </div>
       </div>
       <div className="candidate-list">
-        {candidates.length === 0 && <span className="empty-state">No candidates yet.</span>}
+        {candidates.length === 0 && <span className="empty-state">{text("No candidates yet.")}</span>}
         {candidates.map((candidate) => {
           const isReviewing = reviewingCandidateId === candidate.id;
           const isTerminal = candidate.status === "accepted" || candidate.status === "rejected";
@@ -32,13 +35,13 @@ export function CandidatePanel({ candidates, onReview, reviewingCandidateId }: C
                 <p>{candidate.explanation}</p>
               </div>
               <b>{Math.round(candidate.score * 100)}%</b>
-              <small>{candidate.status}</small>
-              {candidate.source_candidate_id && <small>source candidate: {candidate.source_candidate_id}</small>}
+              <small>{text(candidate.status)}</small>
+              {candidate.source_candidate_id && <small>{text("source candidate")}: {candidate.source_candidate_id}</small>}
               {candidate.score_components && (
                 <div className="candidate-score-details">
-                  <span>keywords {Math.round(candidate.score_components.keyword_score * 100)}%</span>
-                  <span>priority {Math.round(candidate.score_components.priority_score * 100)}%</span>
-                  <span>memory {Math.round(candidate.score_components.memory_confidence * 100)}%</span>
+                  <span>{text("keywords")} {Math.round(candidate.score_components.keyword_score * 100)}%</span>
+                  <span>{text("priority")} {Math.round(candidate.score_components.priority_score * 100)}%</span>
+                  <span>{text("memory")} {Math.round(candidate.score_components.memory_confidence * 100)}%</span>
                 </div>
               )}
               {candidate.matched_keywords.length > 0 && (
@@ -63,21 +66,21 @@ export function CandidatePanel({ candidates, onReview, reviewingCandidateId }: C
                   onClick={() => onReview(candidate.id, "accepted")}
                   disabled={isReviewing || isTerminal}
                 >
-                  {candidate.status === "accepted" ? "Accepted" : "Accept"}
+                  {text(candidate.status === "accepted" ? "Accepted" : "Accept")}
                 </button>
                 <button
                   type="button"
                   onClick={() => onReview(candidate.id, "deepen")}
                   disabled={isReviewing || isTerminal || isDeepeningQueued}
                 >
-                  {isDeepeningQueued ? "Queued" : "Deepen"}
+                  {text(isDeepeningQueued ? "Queued" : "Deepen")}
                 </button>
                 <button
                   type="button"
                   onClick={() => onReview(candidate.id, "rejected")}
                   disabled={isReviewing || isTerminal}
                 >
-                  {candidate.status === "rejected" ? "Rejected" : "Reject"}
+                  {text(candidate.status === "rejected" ? "Rejected" : "Reject")}
                 </button>
               </div>
             </article>

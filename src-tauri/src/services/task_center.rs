@@ -96,28 +96,50 @@ pub fn set_direction_active(
             mark_service_saga_failed(&saga.id);
             format!("Task direction active state could not be updated: {error}")
         })?;
-    super::audit_event::record_change(
-        "set-task-direction-active",
-        "task-direction",
-        &direction_id,
-        "high",
-        if active { "active" } else { "inactive" },
-        serde_json::json!({
-            "active": active,
-            "snapshot_id": snapshot.id,
-            "saga_id": saga.id,
-        }),
-        serde_json::json!({
-            "active": direction.active,
-            "updated_at_ms": direction.updated_at_ms,
-            "saga_id": saga.id,
-        }),
-    )
-    .map_err(|error| {
-        mark_service_saga_failed(&saga.id);
-        error
-    })?;
-    finish_service_saga(&saga.id, Ok(direction))
+    finalize_direction_state_change(
+        || {
+            super::audit_event::record_change(
+                "set-task-direction-active",
+                "task-direction",
+                &direction_id,
+                "high",
+                if active { "active" } else { "inactive" },
+                serde_json::json!({
+                    "active": active,
+                    "snapshot_id": snapshot.id,
+                    "saga_id": saga.id,
+                }),
+                serde_json::json!({
+                    "active": direction.active,
+                    "updated_at_ms": direction.updated_at_ms,
+                    "saga_id": saga.id,
+                }),
+            )
+            .map(|_| ())
+        },
+        || store::transition_saga(saga.id.clone(), "committed".to_string()).map(|_| ()),
+        |error| compensate_direction_state_change(&saga.id, before.clone(), error),
+    )?;
+    Ok(direction)
+}
+
+fn finalize_direction_state_change<FAudit, FCommit, FCompensate>(
+    audit: FAudit,
+    commit: FCommit,
+    compensate: FCompensate,
+) -> Result<(), String>
+where
+    FAudit: FnOnce() -> Result<(), String>,
+    FCommit: FnOnce() -> Result<(), store::StoreError>,
+    FCompensate: FnOnce(String) -> Result<(), String>,
+{
+    if let Err(error) = audit() {
+        return compensate(error);
+    }
+    if let Err(error) = commit() {
+        return compensate(format!("Task direction saga could not be committed: {error}"));
+    }
+    Ok(())
 }
 
 fn begin_service_saga(
@@ -129,22 +151,28 @@ fn begin_service_saga(
         .map_err(|error| format!("Saga could not be started: {error}"))
 }
 
-fn finish_service_saga<T>(saga_id: &str, result: Result<T, String>) -> Result<T, String> {
-    match result {
-        Ok(value) => {
-            store::transition_saga(saga_id.to_string(), "committed".to_string())
-                .map_err(|error| format!("Saga could not be committed: {error}"))?;
-            Ok(value)
-        }
-        Err(error) => {
-            mark_service_saga_failed(saga_id);
-            Err(error)
-        }
-    }
-}
-
 fn mark_service_saga_failed(saga_id: &str) {
     let _ = store::transition_saga(saga_id.to_string(), "failed".to_string());
+}
+
+fn compensate_direction_state_change<T>(
+    saga_id: &str,
+    before: store::TaskDirection,
+    error: String,
+) -> Result<T, String> {
+    let _ = store::transition_saga(saga_id.to_string(), "compensating".to_string());
+    match store::restore_task_direction(before) {
+        Ok(_) => {
+            let _ = store::transition_saga(saga_id.to_string(), "compensated".to_string());
+            Err(error)
+        }
+        Err(compensation_error) => {
+            mark_service_saga_failed(saga_id);
+            Err(format!(
+                "{error}; task direction compensation failed: {compensation_error}"
+            ))
+        }
+    }
 }
 
 pub fn schedule_previews() -> Result<Vec<store::TaskSchedulePreview>, String> {
@@ -193,6 +221,12 @@ pub fn promote_artifact_to_zhishu(
         .into_iter()
         .find(|artifact| artifact.id == artifact_id)
         .ok_or_else(|| format!("Task artifact was not found: {artifact_id}"))?;
+    if requires_provider_artifact_admission_flow(&artifact) {
+        return Err(
+            "Provider-governed evidence requires provider artifact Zhishu admission preflight before promotion."
+                .to_string(),
+        );
+    }
     let memory_items = store::recent_memory_items(200)
         .map_err(|error| format!("Zhishu items are unavailable: {error}"))?;
     if memory_items
@@ -371,6 +405,15 @@ fn has_artifact_promotion_tag(tags: &[String], artifact_id: &str) -> bool {
         .any(|tag| tag == &format!("artifact:{artifact_id}"))
 }
 
+fn requires_provider_artifact_admission_flow(artifact: &store::TaskArtifactRecord) -> bool {
+    artifact.artifact_type == "provider-receipt-evidence"
+        || artifact
+            .metadata
+            .get("provider_artifact_admission_required")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,6 +472,43 @@ mod tests {
     }
 
     #[test]
+    fn provider_receipt_artifact_uses_dedicated_admission_flow() {
+        let provider_artifact = store::TaskArtifactRecord {
+            id: "artifact-provider".to_string(),
+            run_id: "run-provider".to_string(),
+            task_direction_id: "baigong-provider-receipt".to_string(),
+            artifact_type: "provider-receipt-evidence".to_string(),
+            reference_id: "provider-candidate-1".to_string(),
+            title: "Provider evidence".to_string(),
+            summary: "Quarantined provider evidence".to_string(),
+            metadata: serde_json::json!({}),
+            created_at_ms: 1,
+        };
+        let regular_artifact = store::TaskArtifactRecord {
+            artifact_type: "daily-briefing".to_string(),
+            ..provider_artifact.clone()
+        };
+        let briefing_provider_artifact = store::TaskArtifactRecord {
+            artifact_type: "daily-briefing".to_string(),
+            metadata: serde_json::json!({
+                "provider_artifact_admission_required": true,
+                "source": "daily-briefing-provider-evidence",
+            }),
+            ..provider_artifact.clone()
+        };
+
+        assert!(requires_provider_artifact_admission_flow(
+            &provider_artifact
+        ));
+        assert!(requires_provider_artifact_admission_flow(
+            &briefing_provider_artifact
+        ));
+        assert!(!requires_provider_artifact_admission_flow(
+            &regular_artifact
+        ));
+    }
+
+    #[test]
     fn empty_direction_id_is_rejected_before_snapshot() {
         let error = set_direction_active("  ".to_string(), true).unwrap_err();
 
@@ -472,5 +552,49 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error, "Task direction push channel is not supported.");
+    }
+
+    #[test]
+    fn direction_activation_compensates_when_audit_write_fails() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let result = finalize_direction_state_change(
+            || {
+                events.borrow_mut().push("audit");
+                Err("audit unavailable".to_string())
+            },
+            || {
+                events.borrow_mut().push("commit");
+                Ok(())
+            },
+            |error| {
+                events.borrow_mut().push("compensate");
+                Err(error)
+            },
+        );
+
+        assert_eq!(result.unwrap_err(), "audit unavailable");
+        assert_eq!(events.into_inner(), vec!["audit", "compensate"]);
+    }
+
+    #[test]
+    fn direction_activation_compensates_when_saga_commit_fails() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let result = finalize_direction_state_change(
+            || {
+                events.borrow_mut().push("audit");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("commit");
+                Err(store::StoreError::InvalidInput("commit unavailable".to_string()))
+            },
+            |error| {
+                events.borrow_mut().push("compensate");
+                Err(error)
+            },
+        );
+
+        assert!(result.unwrap_err().contains("Task direction saga could not be committed"));
+        assert_eq!(events.into_inner(), vec!["audit", "commit", "compensate"]);
     }
 }

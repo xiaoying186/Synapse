@@ -15,15 +15,19 @@
     "preflight:static": "node scripts/production-preflight.mjs --static",
     "preview": "vite preview",
     "release:doctor": "node scripts/release-doctor.mjs",
+    "release:acceptance": "node scripts/release-acceptance.mjs",
     "release:evidence": "node scripts/release-evidence.mjs",
     "release:notes": "node scripts/release-notes.mjs",
     "release:sha256": "node scripts/release-sha256.mjs",
+    "release:smoke:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/installer-smoke.ps1",
     "release:status": "node scripts/release-status.mjs",
     "secret:scan": "node scripts/secret-guard.mjs",
     "smoke:ui": "node scripts/ui-smoke.mjs",
+    "test": "npm run i18n:check && npm run smoke:ui",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build:release": "tauri build --bundles nsis",
     "wix:diagnose": "node scripts/wix-diagnose.mjs"
   },
   "dependencies": {
@@ -32,6 +36,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

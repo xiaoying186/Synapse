@@ -85,6 +85,13 @@ pub fn export_zhishu_repository() -> Result<ZhishuRepositoryBundle, StoreError> 
 }
 
 pub fn import_zhishu_repository(raw: String) -> Result<ZhishuRepositoryImportReceipt, StoreError> {
+    import_zhishu_repository_at(&database_path(), raw)
+}
+
+pub(crate) fn import_zhishu_repository_at(
+    database_path: &Path,
+    raw: String,
+) -> Result<ZhishuRepositoryImportReceipt, StoreError> {
     let bundle = serde_json::from_str::<ZhishuRepositoryBundle>(&raw)?;
     if bundle.schema_version > STORE_SCHEMA_VERSION {
         return Err(StoreError::InvalidInput(format!(
@@ -99,7 +106,7 @@ pub fn import_zhishu_repository(raw: String) -> Result<ZhishuRepositoryImportRec
         relations: bundle.relations.len(),
         maintenance_findings: bundle.maintenance_findings.len(),
     };
-    let mut connection = open_database(&database_path())?;
+    let mut connection = open_database(database_path)?;
     let transaction = connection.transaction()?;
     for (collection, records) in [
         (MEMORY_COLLECTION, bundle.memory_items),

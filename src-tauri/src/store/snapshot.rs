@@ -5,11 +5,20 @@ use serde::{Deserialize, Serialize};
 use crate::store::{now_millis, paths, read_json_records, write_json_records, StoreError};
 
 const MAX_SNAPSHOTS: usize = 500;
-const SUPPORTED_OBJECT_TYPES: [&str; 4] = [
+const SUPPORTED_OBJECT_TYPES: [&str; 13] = [
     "zhishu-item",
     "task-direction",
     "arsenal-allow-state",
     "arsenal-custom-tool",
+    "provider-receipt-review-candidate",
+    "provider-artifact-admission-review",
+    "provider-artifact-zhishu-candidate",
+    "device-sync-import",
+    "source-registry-approval",
+    "source-registry-health",
+    "daily-briefing-archive",
+    "local-app-allow-state",
+    "notification-delivery-attempt",
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

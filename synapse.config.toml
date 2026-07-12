@@ -23,7 +23,11 @@ pro_dimensions = ["strict", "accurate"]
 mode_lock_auto = true
 
 [storage]
-data_dir = "./data"
+# Relative to the active local-data base. Installed desktop builds use the
+# current user's application-data directory; development fallback uses the
+# project root. The default preserves the existing local store in development.
+# Absolute paths and parent-directory traversal are rejected at runtime.
+data_dir = ".synapse"
 
 [storage.l0]
 max_session_mb = 256
@@ -67,6 +71,11 @@ poll_interval_seconds = 30
 [aggregation]
 # Exact allowlisted read-only JSON endpoint. Leave empty to disable HTTP retrieval.
 http_source_url = ""
+# Optional comma-separated, independently operated JSON sources. At least one
+# distinct cross-check URL is required before a live Daily Briefing fetch opens.
+http_cross_check_urls = ""
+# Comma-separated Source Registry IDs, one for each configured URL above.
+http_source_ids = ""
 
 [browser]
 # Comma-separated exact hostnames allowed for read-only browser inspection.
@@ -93,6 +102,7 @@ webhook_url = ""
 # External side effects stay disabled by default in the public guarded baseline.
 external_delivery_enabled = false
 agent_execution_enabled = false
+script_execution_enabled = false
 
 [sync.relay]
 # Disabled by default. This stage only previews relay readiness; no upload occurs.

@@ -376,6 +376,58 @@ mod tests {
     }
 
     #[test]
+    fn zhishu_retrieval_acceptance_finds_reviewed_l2_memory_after_admission() {
+        let mut accepted = item(
+            "memory-accepted",
+            "accepted",
+            "Judicial appraisal template writing workflow",
+            &["template", "judicial"],
+        );
+        accepted.hub_area = "knowledge".to_string();
+        accepted.scope = "L2 Knowledge".to_string();
+        accepted.level = "reviewed".to_string();
+        accepted.item_type = "knowledge".to_string();
+        accepted.admission_rule = "knowledge-review-required".to_string();
+        accepted.retention_policy = "durable-review".to_string();
+        accepted.source_trust = "reviewed-local".to_string();
+
+        let mut captured = accepted.clone();
+        captured.id = "memory-captured".to_string();
+        captured.admission_state = "captured".to_string();
+        captured.content = "Judicial appraisal template captured candidate".to_string();
+
+        let mut rejected = accepted.clone();
+        rejected.id = "memory-rejected".to_string();
+        rejected.admission_state = "rejected".to_string();
+        rejected.level = "rejected".to_string();
+
+        let response = search_items(
+            vec![captured, rejected, accepted],
+            ZhishuSearchQuery {
+                text: "template judicial".to_string(),
+                hub_area: Some("knowledge".to_string()),
+                scope: Some("L2 Knowledge".to_string()),
+                admission_state: Some("accepted".to_string()),
+                minimum_confidence: Some(0.7),
+                limit: Some(10),
+                ..Default::default()
+            },
+            DAY_MS,
+        )
+        .unwrap();
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.results[0].item.id, "memory-accepted");
+        assert_eq!(response.results[0].item.retention_policy, "durable-review");
+        assert!(response.results[0]
+            .matched_fields
+            .contains(&"content".to_string()));
+        assert!(response.results[0]
+            .matched_fields
+            .contains(&"tags".to_string()));
+    }
+
+    #[test]
     fn maintenance_detects_duplicates_stale_items_and_conservative_conflicts() {
         let mut duplicate = item(
             "memory-2",

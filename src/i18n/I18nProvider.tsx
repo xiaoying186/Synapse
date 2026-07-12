@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { localizeText } from "./localizeText";
 import { dictionaries, type TranslationKey } from "./translations";
 
 export type Language = keyof typeof dictionaries;
@@ -9,6 +10,7 @@ type I18nContextValue = {
   languageMode: LanguageMode;
   setLanguageMode: (mode: LanguageMode) => void;
   t: (key: TranslationKey) => string;
+  text: (value: string | null | undefined) => string;
 };
 
 const STORAGE_KEY = "synapse.language";
@@ -57,6 +59,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       languageMode,
       setLanguageMode: setLanguageModeState,
       t: (key) => dictionaries[language][key],
+      text: (value) => localizeText(value, language),
     }),
     [language, languageMode],
   );

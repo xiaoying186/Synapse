@@ -47,6 +47,31 @@ pub struct DeviceSyncImportReceipt {
     pub preview: DeviceSyncImportPreview,
     pub imported: store::ZhishuRepositoryImportReceipt,
     pub state: DeviceSyncState,
+    pub snapshot: store::SnapshotRecord,
+    pub audit_event: store::AuditEvent,
+    pub saga: store::SagaTransaction,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceSyncImportApplyPreflight {
+    pub generated_at_ms: u128,
+    pub package_id: String,
+    pub source_device_id: String,
+    pub local_device_id: String,
+    pub state: String,
+    pub preview_state: String,
+    pub can_apply: bool,
+    pub allow_replace: bool,
+    pub requires_explicit_replace: bool,
+    pub import_started: bool,
+    pub durable_write_started: bool,
+    pub backup_required: bool,
+    pub audit_required: bool,
+    pub rollback_snapshot_required: bool,
+    pub cloud_source_of_truth: bool,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -167,16 +192,232 @@ pub fn import_package(
         ));
     }
     let package = parse_package(&raw)?;
-    let imported = store::import_zhishu_repository(serde_json::to_string(&package.zhishu)?)?;
-    let mut sync_state = state()?;
+    let previous_zhishu = store::export_zhishu_repository()?;
+    let previous_state = state()?;
+    let saga = store::begin_saga(
+        "device-sync-import".to_string(),
+        previous_state.device_id.clone(),
+        serde_json::json!({
+            "package_id": package.package_id,
+            "source_device_id": package.source_device_id,
+            "allow_replace": allow_replace,
+        }),
+    )?;
+    let snapshot = match store::create_snapshot(
+        "device-sync-import".to_string(),
+        previous_state.device_id.clone(),
+        "before-device-sync-import".to_string(),
+        serde_json::json!({
+            "zhishu": previous_zhishu,
+            "device_sync_state": previous_state,
+            "saga_id": saga.id,
+        }),
+    ) {
+        Ok(snapshot) => snapshot,
+        Err(error) => return fail_saga(&saga, error),
+    };
+    let imported = match store::import_zhishu_repository(serde_json::to_string(&package.zhishu)?) {
+        Ok(imported) => imported,
+        Err(error) => return fail_saga(&saga, error),
+    };
+    let mut sync_state = previous_state.clone();
     sync_state.last_synced_hash = Some(package.content_hash);
     sync_state.last_imported_at_ms = Some(store::now_millis());
-    write_state(&sync_state)?;
+    let audit_event = finalize_import_commit(
+        || write_state(&sync_state),
+        || store::append_audit_event(store::NewAuditEvent {
+        actor: "taiheng".to_string(),
+        action: "import-device-sync-package".to_string(),
+        target_type: "device-sync".to_string(),
+        target_id: sync_state.device_id.clone(),
+        risk_level: "high".to_string(),
+        decision: preview.state.clone(),
+        input: serde_json::json!({
+            "allow_replace": allow_replace,
+            "package_id": package.package_id,
+            "snapshot_id": snapshot.id,
+            "saga_id": saga.id,
+        }),
+        result_summary: serde_json::json!({
+            "memory_items": imported.memory_items,
+            "relations": imported.relations,
+            "maintenance_findings": imported.maintenance_findings,
+            "last_synced_hash": sync_state.last_synced_hash,
+            "rollback_snapshot_id": snapshot.id,
+        }),
+        error: None,
+        }),
+        || compensate_import_state(&saga, &previous_zhishu, &previous_state),
+    )?;
+    let saga = match store::transition_saga(saga.id.clone(), "committed".to_string()) {
+        Ok(saga) => saga,
+        Err(error) => {
+            return finish_compensation(
+                error,
+                compensate_import_state(&saga, &previous_zhishu, &previous_state),
+            )
+        }
+    };
     Ok(DeviceSyncImportReceipt {
         preview,
         imported,
         state: sync_state,
+        snapshot,
+        audit_event,
+        saga,
     })
+}
+
+fn fail_saga<T>(saga: &store::SagaTransaction, error: store::StoreError) -> Result<T, store::StoreError> {
+    let _ = store::transition_saga(saga.id.clone(), "failed".to_string());
+    Err(error)
+}
+
+fn finalize_import_commit<T, FState, FAudit, FCompensate>(
+    write_state: FState,
+    write_audit: FAudit,
+    compensate: FCompensate,
+) -> Result<T, store::StoreError>
+where
+    FState: FnOnce() -> Result<(), store::StoreError>,
+    FAudit: FnOnce() -> Result<T, store::StoreError>,
+    FCompensate: FnOnce() -> Result<(), store::StoreError>,
+{
+    if let Err(error) = write_state() {
+        return finish_compensation(error, compensate());
+    }
+    match write_audit() {
+        Ok(value) => Ok(value),
+        Err(error) => finish_compensation(error, compensate()),
+    }
+}
+
+fn finish_compensation<T>(
+    original_error: store::StoreError,
+    compensation: Result<(), store::StoreError>,
+) -> Result<T, store::StoreError> {
+    match compensation {
+        Ok(()) => Err(original_error),
+        Err(compensation_error) => Err(store::StoreError::InvalidInput(format!(
+            "device sync import failed: {original_error}; compensation failed: {compensation_error}"
+        ))),
+    }
+}
+
+fn compensate_import_state(
+    saga: &store::SagaTransaction,
+    previous_zhishu: &store::ZhishuRepositoryBundle,
+    previous_state: &DeviceSyncState,
+) -> Result<(), store::StoreError> {
+    let _ = store::transition_saga(saga.id.clone(), "compensating".to_string());
+    let result = restore_import_state(
+        || {
+            store::import_zhishu_repository(
+                serde_json::to_string(previous_zhishu).map_err(store::StoreError::from)?,
+            )
+            .map(|_| ())
+        },
+        || write_state(previous_state),
+    );
+    if result.is_ok() {
+        let _ = store::transition_saga(saga.id.clone(), "compensated".to_string());
+    } else {
+        let _ = store::transition_saga(saga.id.clone(), "failed".to_string());
+    }
+    result
+}
+
+fn restore_import_state<FRepository, FState>(
+    restore_repository: FRepository,
+    restore_state: FState,
+) -> Result<(), store::StoreError>
+where
+    FRepository: FnOnce() -> Result<(), store::StoreError>,
+    FState: FnOnce() -> Result<(), store::StoreError>,
+{
+    let repository_result = restore_repository();
+    let state_result = restore_state();
+    match (repository_result, state_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(repository_error), Ok(())) => Err(store::StoreError::InvalidInput(format!(
+            "device sync import compensation failed: Zhishu repository rollback: {repository_error}"
+        ))),
+        (Ok(()), Err(state_error)) => Err(store::StoreError::InvalidInput(format!(
+            "device sync import compensation failed: device sync state rollback: {state_error}"
+        ))),
+        (Err(repository_error), Err(state_error)) => Err(store::StoreError::InvalidInput(format!(
+            "device sync import compensation failed: Zhishu repository rollback: {repository_error}; device sync state rollback: {state_error}"
+        ))),
+    }
+}
+
+pub fn preflight_import_apply(
+    raw: String,
+    allow_replace: bool,
+) -> Result<DeviceSyncImportApplyPreflight, store::StoreError> {
+    let preview = preview_import(raw)?;
+    Ok(build_import_apply_preflight(preview, allow_replace))
+}
+
+fn build_import_apply_preflight(
+    preview: DeviceSyncImportPreview,
+    allow_replace: bool,
+) -> DeviceSyncImportApplyPreflight {
+    let replace_blocked = preview.requires_explicit_replace && !allow_replace;
+    let can_apply = preview.can_import && !replace_blocked;
+    let mut blockers = Vec::new();
+    if !preview.can_import {
+        blockers.push(format!("import-preview-blocked-{}", preview.state));
+    }
+    if replace_blocked {
+        blockers.push("explicit-replace-approval-not-granted".to_string());
+    }
+    blockers.extend([
+        "rollback-snapshot-not-created".to_string(),
+        "import-audit-record-not-opened".to_string(),
+    ]);
+
+    DeviceSyncImportApplyPreflight {
+        generated_at_ms: store::now_millis(),
+        package_id: preview.package_id,
+        source_device_id: preview.source_device_id,
+        local_device_id: preview.local_device_id,
+        state: if can_apply {
+            "device-sync-import-apply-review-required".to_string()
+        } else {
+            "device-sync-import-apply-blocked".to_string()
+        },
+        preview_state: preview.state,
+        can_apply,
+        allow_replace,
+        requires_explicit_replace: preview.requires_explicit_replace,
+        import_started: false,
+        durable_write_started: false,
+        backup_required: true,
+        audit_required: true,
+        rollback_snapshot_required: true,
+        cloud_source_of_truth: false,
+        gates: vec![
+            "schema-version-check".to_string(),
+            "sha256-content-integrity".to_string(),
+            "device-identity-visible".to_string(),
+            "base-hash-conflict-detection".to_string(),
+            "explicit-replace-for-nonempty-initial-import".to_string(),
+            "rollback-snapshot-before-import".to_string(),
+            "audit-required-before-device-sync-import".to_string(),
+            "local-device-remains-source-of-truth".to_string(),
+            "no-automatic-merge".to_string(),
+            "no-credentials-or-environment-data".to_string(),
+        ],
+        blockers,
+        denied_actions: vec![
+            "import-without-preview".to_string(),
+            "replace-without-explicit-approval".to_string(),
+            "cloud-relay-as-source-of-truth".to_string(),
+            "automatic-merge".to_string(),
+            "credential-or-environment-import".to_string(),
+        ],
+    }
 }
 
 pub fn relay_preview() -> RelayPreview {
@@ -263,6 +504,8 @@ fn sanitize_id(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::RefCell, fs, path::PathBuf};
+
     use super::*;
 
     #[test]
@@ -296,6 +539,121 @@ mod tests {
         assert!(parse_package(&serde_json::to_string(&package).unwrap()).is_err());
     }
 
+    #[test]
+    fn import_apply_preflight_never_writes_and_blocks_replace_without_approval() {
+        let preview = DeviceSyncImportPreview {
+            package_id: "package-1".to_string(),
+            source_device_id: "device-other".to_string(),
+            source_device_label: "Other device".to_string(),
+            local_device_id: "device-local".to_string(),
+            local_hash: "local".to_string(),
+            base_hash: None,
+            incoming_hash: "incoming".to_string(),
+            state: "initial-import-requires-replace".to_string(),
+            can_import: true,
+            requires_explicit_replace: true,
+            gates: vec![],
+        };
+        let preflight = build_import_apply_preflight(preview, false);
+
+        assert_eq!(preflight.state, "device-sync-import-apply-blocked");
+        assert!(!preflight.can_apply);
+        assert!(!preflight.import_started);
+        assert!(!preflight.durable_write_started);
+        assert!(preflight.backup_required);
+        assert!(preflight.audit_required);
+        assert!(preflight.rollback_snapshot_required);
+        assert!(!preflight.cloud_source_of_truth);
+        assert!(preflight
+            .gates
+            .contains(&"local-device-remains-source-of-truth".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"explicit-replace-approval-not-granted".to_string()));
+        assert!(preflight
+            .denied_actions
+            .contains(&"cloud-relay-as-source-of-truth".to_string()));
+    }
+
+    #[test]
+    fn import_commit_compensates_state_failure_before_audit() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let result = finalize_import_commit::<(), _, _, _>(
+            || {
+                events.borrow_mut().push("state");
+                Err(store::StoreError::InvalidInput("state failed".to_string()))
+            },
+            || {
+                events.borrow_mut().push("audit");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("compensate");
+                Ok(())
+            },
+        );
+
+        assert!(result.is_err());
+        assert_eq!(events.into_inner(), vec!["state", "compensate"]);
+    }
+
+    #[test]
+    fn import_commit_compensates_audit_failure_after_state_write() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let result = finalize_import_commit::<(), _, _, _>(
+            || {
+                events.borrow_mut().push("state");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("audit");
+                Err(store::StoreError::InvalidInput("audit failed".to_string()))
+            },
+            || {
+                events.borrow_mut().push("compensate");
+                Ok(())
+            },
+        );
+
+        assert!(result.is_err());
+        assert_eq!(events.into_inner(), vec!["state", "audit", "compensate"]);
+    }
+
+    #[test]
+    fn import_compensation_reports_temporary_repository_rollback_failure_and_restores_state() {
+        let database = temporary_database_path("device-sync-compensation");
+        let previous = bundle(Vec::new());
+        store::import_zhishu_repository_at(&database, serde_json::to_string(&previous).unwrap())
+            .unwrap();
+
+        let lock = rusqlite::Connection::open(&database).unwrap();
+        lock.execute_batch("BEGIN EXCLUSIVE").unwrap();
+        let events = RefCell::new(Vec::new());
+        let result = restore_import_state(
+            || {
+                events.borrow_mut().push("repository");
+                store::import_zhishu_repository_at(
+                    &database,
+                    serde_json::to_string(&previous).unwrap(),
+                )
+                .map(|_| ())
+            },
+            || {
+                events.borrow_mut().push("state");
+                Ok(())
+            },
+        );
+        lock.execute_batch("ROLLBACK").unwrap();
+
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("Zhishu repository rollback"));
+        assert_eq!(events.into_inner(), vec!["repository", "state"]);
+
+        let _ = fs::remove_file(&database);
+        let _ = fs::remove_file(database.with_extension("db-shm"));
+        let _ = fs::remove_file(database.with_extension("db-wal"));
+    }
+
     fn bundle(memory_items: Vec<serde_json::Value>) -> store::ZhishuRepositoryBundle {
         store::ZhishuRepositoryBundle {
             schema_version: store::STORE_SCHEMA_VERSION,
@@ -303,5 +661,9 @@ mod tests {
             relations: Vec::new(),
             maintenance_findings: Vec::new(),
         }
+    }
+
+    fn temporary_database_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("synapse-{name}-{}.db", store::now_millis()))
     }
 }

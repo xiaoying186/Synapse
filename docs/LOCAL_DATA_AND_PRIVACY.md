@@ -6,8 +6,24 @@ otherwise and passes review gates.
 
 ## Local Data
 
-Development data may be stored under `.synapse/` in the repository workspace.
-This directory is ignored by Git and should not be committed.
+Installed desktop builds store data under the current user's application-data
+directory, with `.synapse/` as the default relative data directory. Development
+and non-Tauri tools use `.synapse/` in the repository workspace. This directory
+is ignored by Git and should not be committed. Set `[storage].data_dir` in
+`synapse.config.toml` to another non-empty relative directory; absolute paths
+and `..` traversal are rejected to prevent an accidental storage escape.
+
+For an installed desktop build, an optional `synapse.config.toml` placed in the
+application-data directory is the runtime configuration source. On first
+launch, Synapse creates this local template with guarded defaults and never
+overwrites an existing file. Development continues to use the workspace
+configuration file.
+
+The Settings page can change only the local mode, data directory, and scheduler
+cadence. It previews the requested values, requires an explicit restart-aware
+confirmation, synchronizes a sibling `.bak` copy before atomically replacing
+the active file, and does not expose
+external delivery, Agent execution, script execution, or relay switches.
 
 Typical local records include:
 

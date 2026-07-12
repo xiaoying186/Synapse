@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 
 use serde::Serialize;
 
@@ -46,6 +47,54 @@ pub struct ComputerDiagnosticArchiveReceipt {
     pub report: ComputerDiagnosticReport,
     pub artifact: store::TaskArtifactRecord,
     pub run: store::TaskRunRecord,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CleanupCandidate {
+    pub id: String,
+    pub label: String,
+    pub location_kind: String,
+    pub path_preview: String,
+    pub estimated_reclaimable_bytes: u64,
+    pub confidence: String,
+    pub action_policy: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CleanupDryRunPreview {
+    pub generated_at_ms: u128,
+    pub state: String,
+    pub candidate_count: usize,
+    pub estimated_reclaimable_bytes: u64,
+    pub deleted_bytes: u64,
+    pub mutation_started: bool,
+    pub requires_restore_point: bool,
+    pub requires_explicit_approval: bool,
+    pub candidates: Vec<CleanupCandidate>,
+    pub denied_actions: Vec<String>,
+    pub safety_boundary: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CleanupMutationPreflight {
+    pub generated_at_ms: u128,
+    pub state: String,
+    pub cleanup_state: String,
+    pub candidate_count: usize,
+    pub restore_point_required: bool,
+    pub restore_point_available: bool,
+    pub explicit_approval_required: bool,
+    pub audit_required: bool,
+    pub rollback_plan_required: bool,
+    pub requires_admin: bool,
+    pub system_mutation_started: bool,
+    pub file_deletion_started: bool,
+    pub registry_write_started: bool,
+    pub process_kill_started: bool,
+    pub candidates: Vec<CleanupCandidate>,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
 }
 
 pub fn preview() -> ComputerDiagnosticReport {
@@ -160,6 +209,155 @@ pub fn preview() -> ComputerDiagnosticReport {
     }
 }
 
+pub fn cleanup_dry_run() -> CleanupDryRunPreview {
+    let candidates = cleanup_candidates();
+    let estimated_reclaimable_bytes = candidates
+        .iter()
+        .map(|candidate| candidate.estimated_reclaimable_bytes)
+        .sum();
+
+    CleanupDryRunPreview {
+        generated_at_ms: store::now_millis(),
+        state: "cleanup-dry-run-review-required".to_string(),
+        candidate_count: candidates.len(),
+        estimated_reclaimable_bytes,
+        deleted_bytes: 0,
+        mutation_started: false,
+        requires_restore_point: true,
+        requires_explicit_approval: true,
+        candidates,
+        denied_actions: vec![
+            "delete-files".to_string(),
+            "empty-recycle-bin".to_string(),
+            "registry-cleanup".to_string(),
+            "service-stop".to_string(),
+            "process-kill".to_string(),
+            "browser-cache-read".to_string(),
+            "installed-app-uninstall".to_string(),
+        ],
+        safety_boundary: vec![
+            "dry-run-only".to_string(),
+            "no-file-deletion".to_string(),
+            "no-file-content-read".to_string(),
+            "no-registry-write".to_string(),
+            "no-process-launch".to_string(),
+            "restore-point-required-before-real-cleanup".to_string(),
+            "explicit-approval-required-before-real-cleanup".to_string(),
+            "audit-required-before-real-cleanup".to_string(),
+        ],
+    }
+}
+
+pub fn cleanup_mutation_preflight() -> CleanupMutationPreflight {
+    let preview = cleanup_dry_run();
+
+    CleanupMutationPreflight {
+        generated_at_ms: store::now_millis(),
+        state: "cleanup-mutation-blocked-by-default".to_string(),
+        cleanup_state: preview.state,
+        candidate_count: preview.candidate_count,
+        restore_point_required: true,
+        restore_point_available: false,
+        explicit_approval_required: true,
+        audit_required: true,
+        rollback_plan_required: true,
+        requires_admin: true,
+        system_mutation_started: false,
+        file_deletion_started: false,
+        registry_write_started: false,
+        process_kill_started: false,
+        candidates: preview.candidates,
+        gates: vec![
+            "restore-point-required-before-real-cleanup".to_string(),
+            "explicit-approval-required-before-real-cleanup".to_string(),
+            "audit-required-before-real-cleanup".to_string(),
+            "rollback-plan-required-before-real-cleanup".to_string(),
+            "admin-session-required-before-real-cleanup".to_string(),
+            "candidate-review-required-before-real-cleanup".to_string(),
+        ],
+        blockers: vec![
+            "restore-point-not-created".to_string(),
+            "cleanup-approval-not-granted".to_string(),
+            "cleanup-audit-record-not-opened".to_string(),
+            "rollback-plan-not-attached".to_string(),
+            "real-cleanup-executor-disabled".to_string(),
+        ],
+        denied_actions: vec![
+            "delete-files".to_string(),
+            "empty-recycle-bin".to_string(),
+            "registry-cleanup".to_string(),
+            "service-stop".to_string(),
+            "process-kill".to_string(),
+            "installed-app-uninstall".to_string(),
+            "system-setting-change".to_string(),
+        ],
+    }
+}
+
+fn cleanup_candidates() -> Vec<CleanupCandidate> {
+    let mut candidates = Vec::new();
+    let temp_dir = std::env::temp_dir();
+    candidates.push(cleanup_candidate(
+        "user-temp-directory",
+        "User temporary directory",
+        "directory",
+        temp_dir,
+        "manual-review-required",
+    ));
+
+    if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
+        let local_app_data = PathBuf::from(local_app_data);
+        candidates.push(cleanup_candidate(
+            "windows-temp-cache",
+            "Windows temporary cache",
+            "directory",
+            local_app_data.join("Temp"),
+            "manual-review-required",
+        ));
+    }
+
+    candidates
+}
+
+fn cleanup_candidate(
+    id: &str,
+    label: &str,
+    location_kind: &str,
+    path: PathBuf,
+    confidence: &str,
+) -> CleanupCandidate {
+    CleanupCandidate {
+        id: id.to_string(),
+        label: label.to_string(),
+        location_kind: location_kind.to_string(),
+        path_preview: redacted_path_preview(path),
+        estimated_reclaimable_bytes: 0,
+        confidence: confidence.to_string(),
+        action_policy: "preview-only-no-delete".to_string(),
+    }
+}
+
+fn redacted_path_preview(path: PathBuf) -> String {
+    let components = path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().to_string())
+        .collect::<Vec<_>>();
+    if components.len() <= 3 {
+        return path.display().to_string();
+    }
+    let suffix = components
+        .iter()
+        .rev()
+        .take(2)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join(std::path::MAIN_SEPARATOR_STR);
+    format!("<local-user-path>{}{}", std::path::MAIN_SEPARATOR, suffix)
+}
+
 fn system_profile_snapshot(
     runtime_executable_available: bool,
     temp_dir_available: bool,
@@ -268,5 +466,58 @@ mod tests {
             .system_profile
             .safety_boundary
             .contains(&"not-automatically-written-to-l2".to_string()));
+    }
+
+    #[test]
+    fn cleanup_dry_run_never_deletes_or_starts_mutation() {
+        let preview = cleanup_dry_run();
+
+        assert_eq!(preview.state, "cleanup-dry-run-review-required");
+        assert_eq!(preview.deleted_bytes, 0);
+        assert!(!preview.mutation_started);
+        assert!(preview.requires_restore_point);
+        assert!(preview.requires_explicit_approval);
+        assert!(preview
+            .safety_boundary
+            .contains(&"dry-run-only".to_string()));
+        assert!(preview
+            .safety_boundary
+            .contains(&"no-file-content-read".to_string()));
+        assert!(preview.denied_actions.contains(&"delete-files".to_string()));
+        assert!(preview
+            .candidates
+            .iter()
+            .all(|candidate| candidate.action_policy == "preview-only-no-delete"));
+    }
+
+    #[test]
+    fn cleanup_mutation_preflight_requires_restore_point_and_never_mutates() {
+        let preflight = cleanup_mutation_preflight();
+
+        assert_eq!(preflight.state, "cleanup-mutation-blocked-by-default");
+        assert_eq!(preflight.cleanup_state, "cleanup-dry-run-review-required");
+        assert!(preflight.restore_point_required);
+        assert!(!preflight.restore_point_available);
+        assert!(preflight.explicit_approval_required);
+        assert!(preflight.audit_required);
+        assert!(preflight.rollback_plan_required);
+        assert!(preflight.requires_admin);
+        assert!(!preflight.system_mutation_started);
+        assert!(!preflight.file_deletion_started);
+        assert!(!preflight.registry_write_started);
+        assert!(!preflight.process_kill_started);
+        assert!(preflight
+            .gates
+            .contains(&"rollback-plan-required-before-real-cleanup".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"real-cleanup-executor-disabled".to_string()));
+        assert!(preflight
+            .denied_actions
+            .contains(&"delete-files".to_string()));
+        assert!(preflight
+            .candidates
+            .iter()
+            .all(|candidate| candidate.action_policy == "preview-only-no-delete"));
     }
 }

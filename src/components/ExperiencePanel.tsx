@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+
 type ExperiencePanelProps = {
   draft: string;
   isSaving: boolean;
@@ -19,12 +21,14 @@ export function ExperiencePanel({
   tags,
   type,
 }: ExperiencePanelProps) {
+  const { text } = useI18n();
+
   return (
     <section className="panel experience-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Experience</p>
-          <h3>Reuse and avoidance</h3>
+          <p className="eyebrow">{text("Experience")}</p>
+          <h3>{text("Reuse and avoidance")}</h3>
         </div>
       </div>
       <form
@@ -37,21 +41,21 @@ export function ExperiencePanel({
         <textarea
           value={draft}
           onChange={(event) => onDraftChange(event.currentTarget.value)}
-          placeholder="Record a reusable success, caution, allow rule, or deny rule"
+          placeholder={text("Record a reusable success, caution, allow rule, or deny rule")}
         />
         <select value={type} onChange={(event) => onTypeChange(event.currentTarget.value)}>
-          <option value="success">Success</option>
-          <option value="failure">Avoid</option>
-          <option value="allow">Allow / Whitelist</option>
-          <option value="deny">Deny / Blacklist</option>
+          <option value="success">{text("Success")}</option>
+          <option value="failure">{text("Avoid")}</option>
+          <option value="allow">{text("Allow / Whitelist")}</option>
+          <option value="deny">{text("Deny / Blacklist")}</option>
         </select>
         <input
           value={tags}
           onChange={(event) => onTagsChange(event.currentTarget.value)}
-          placeholder="tags, separated, by commas"
+          placeholder={text("tags, separated, by commas")}
         />
         <button type="submit" disabled={isSaving}>
-          {isSaving ? "Saving" : "Save"}
+          {isSaving ? text("Saving") : text("Save")}
         </button>
       </form>
     </section>

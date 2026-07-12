@@ -12,10 +12,10 @@ export function LibraryHomePanel({
   onRefresh,
   preview,
 }: LibraryHomePanelProps) {
-  const { t } = useI18n();
+  const { t, text } = useI18n();
 
   return (
-    <section className="panel library-home-panel">
+    <section className="panel library-home-panel" data-testid="library-home">
       <div className="panel-heading">
         <div>
           <p className="eyebrow">{t("library.eyebrow")}</p>
@@ -26,13 +26,35 @@ export function LibraryHomePanel({
         </button>
       </div>
 
+      <div className="library-acceptance-grid">
+        <article className="library-acceptance-card reading-pane" data-testid="reading-pane">
+          <span>{text("Reading pane")}</span>
+          <strong>{preview?.recent_memory[0]?.content ?? text("No selected reading item yet.")}</strong>
+          <small>{text("Library Home opens with a stable reading area.")}</small>
+        </article>
+        <article className="library-acceptance-card pending-task-panel" data-testid="pending-task-panel">
+          <span>{text("Pending tasks")}</span>
+          <strong>{preview?.pending_review_count ?? 0}</strong>
+          <small>{text("Review-gated outputs and pending items appear here.")}</small>
+        </article>
+        <article className="library-acceptance-card category-task-list" data-testid="category-task-list">
+          <span>{text("Category task list")}</span>
+          <div className="policy-tiers">
+            <span>{text("Knowledge")}</span>
+            <span>{text("Tasks")}</span>
+            <span>{text("Recovery")}</span>
+            <span>{text("Diagnostics")}</span>
+          </div>
+        </article>
+      </div>
+
       {preview ? (
         <>
           <div className="policy-tiers">
-            <span>{preview.state}</span>
-            <span>{preview.recycle_state}</span>
+            <span>{text(preview.state)}</span>
+            <span>{text(preview.recycle_state)}</span>
             {preview.gates.map((gate) => (
-              <span key={gate}>{gate}</span>
+              <span key={gate}>{text(gate)}</span>
             ))}
           </div>
 
@@ -66,7 +88,7 @@ export function LibraryHomePanel({
                 <span>{t("library.recycleCandidates")}</span>
                 <strong>{preview.recycle_candidate_count}</strong>
               </div>
-              <b>{preview.recycle_state}</b>
+              <b>{text(preview.recycle_state)}</b>
               <small>{t("library.restoreRequiresReview")}</small>
             </article>
             <article className="source-gate-item">
@@ -81,9 +103,9 @@ export function LibraryHomePanel({
 
           <div className="retrieval-contract">
             <span>{t("library.recoverabilityPolicy")}</span>
-            <strong>{preview.backup_library_policy}</strong>
-            <p>{preview.restore_policy}</p>
-            <small>{preview.recycle_policy}</small>
+            <strong>{text(preview.backup_library_policy)}</strong>
+            <p>{text(preview.restore_policy)}</p>
+            <small>{text(preview.recycle_policy)}</small>
           </div>
 
           <div className="retrieval-contract">
@@ -92,7 +114,7 @@ export function LibraryHomePanel({
               {preview.memory_by_level.length > 0 ? (
                 preview.memory_by_level.map((metric) => (
                   <span key={metric.label}>
-                    {metric.label}: {metric.value}
+                    {text(metric.label)}: {metric.value}
                   </span>
                 ))
               ) : (
@@ -104,7 +126,7 @@ export function LibraryHomePanel({
               {preview.memory_by_area.length > 0 ? (
                 preview.memory_by_area.map((metric) => (
                   <span key={metric.label}>
-                    {metric.label}: {metric.value}
+                    {text(metric.label)}: {metric.value}
                   </span>
                 ))
               ) : (
@@ -117,17 +139,17 @@ export function LibraryHomePanel({
             {preview.recent_memory.slice(0, 4).map((item) => (
               <article className="source-gate-item" key={item.id}>
                 <div>
-                  <span>{item.level}</span>
-                  <strong>{item.item_type}</strong>
+                  <span>{text(item.level)}</span>
+                  <strong>{text(item.item_type)}</strong>
                 </div>
-                <b>{item.admission_state}</b>
+                <b>{text(item.admission_state)}</b>
                 <small>{item.content}</small>
               </article>
             ))}
             {preview.recent_task_artifacts.slice(0, 4).map((artifact) => (
               <article className="source-gate-item" key={artifact.id}>
                 <div>
-                  <span>{artifact.artifact_type}</span>
+                  <span>{text(artifact.artifact_type)}</span>
                   <strong>{artifact.title}</strong>
                 </div>
                 <b>{artifact.reference_id}</b>
@@ -137,7 +159,7 @@ export function LibraryHomePanel({
             {preview.recent_snapshots.slice(0, 4).map((snapshot) => (
               <article className="source-gate-item" key={snapshot.id}>
                 <div>
-                  <span>{snapshot.object_type}</span>
+                  <span>{text(snapshot.object_type)}</span>
                   <strong>{snapshot.object_id}</strong>
                 </div>
                 <b>v{snapshot.version}</b>
@@ -150,17 +172,17 @@ export function LibraryHomePanel({
                   <span>{t("library.recyclePreview")}</span>
                   <strong>{snapshot.object_id}</strong>
                 </div>
-                <b>{snapshot.object_type}</b>
+                <b>{text(snapshot.object_type)}</b>
                 <small>{snapshot.reason}</small>
               </article>
             ))}
             {preview.recent_sagas.slice(0, 4).map((saga) => (
               <article className="source-gate-item" key={saga.id}>
                 <div>
-                  <span>{saga.kind}</span>
+                  <span>{text(saga.kind)}</span>
                   <strong>{saga.target_id}</strong>
                 </div>
-                <b>{saga.state}</b>
+                <b>{text(saga.state)}</b>
                 <small>{saga.id}</small>
               </article>
             ))}

@@ -21,6 +21,7 @@ pub struct AggregationPreview {
     pub retrieval_contract: RetrievalContract,
     pub observations: Vec<SourceObservation>,
     pub confidence: ConfidenceAssessment,
+    pub evidence_validation: EvidenceValidationContract,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -44,6 +45,23 @@ pub struct ConfidenceAssessment {
     pub freshness_state: String,
     pub admission_state: String,
     pub notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EvidenceValidationContract {
+    pub observation_count: usize,
+    pub source_count: usize,
+    pub distinct_claim_count: usize,
+    pub required_cross_checks: usize,
+    pub cross_check_state: String,
+    pub conflict_state: String,
+    pub quarantine_state: String,
+    pub admission_decision: String,
+    pub summary_allowed: bool,
+    pub durable_write_allowed: bool,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -115,6 +133,8 @@ pub fn preview_for_query(query: String, online_enabled: bool) -> AggregationPrev
     let source_gates = source_gates(online_enabled, required_cross_checks);
     let observations = fixture_observations(&query, realtime);
     let confidence = assess_confidence(&observations, required_cross_checks);
+    let evidence_validation =
+        validate_evidence_contract(&observations, &confidence, required_cross_checks);
 
     AggregationPreview {
         query,
@@ -142,6 +162,97 @@ pub fn preview_for_query(query: String, online_enabled: bool) -> AggregationPrev
         source_gates,
         observations,
         confidence,
+        evidence_validation,
+    }
+}
+
+pub fn validate_evidence_contract(
+    observations: &[SourceObservation],
+    confidence: &ConfidenceAssessment,
+    required_cross_checks: usize,
+) -> EvidenceValidationContract {
+    let source_count = observations
+        .iter()
+        .map(|observation| observation.source_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let distinct_claim_count = observations
+        .iter()
+        .map(|observation| observation.normalized_claim.as_str())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let all_quarantined = !observations.is_empty()
+        && observations
+            .iter()
+            .all(|observation| observation.quarantine_state == "quarantined");
+    let cross_check_state = if source_count >= required_cross_checks && distinct_claim_count <= 1 {
+        "cross-check-passed"
+    } else if source_count >= required_cross_checks {
+        "cross-check-conflict-review"
+    } else {
+        "cross-check-insufficient"
+    };
+    let conflict_state = if distinct_claim_count > 1 || confidence.conflict_level != "none" {
+        "conflict-review-required"
+    } else {
+        "no-conflict-detected"
+    };
+    let quarantine_state = if all_quarantined {
+        "all-sources-quarantined"
+    } else {
+        "quarantine-incomplete"
+    };
+    let summary_allowed = cross_check_state == "cross-check-passed"
+        && conflict_state == "no-conflict-detected"
+        && all_quarantined;
+    let admission_decision =
+        if summary_allowed && confidence.admission_state == "quarantined-review-ready" {
+            "reviewable-summary-only"
+        } else {
+            "blocked-pending-evidence-review"
+        };
+
+    let mut blockers = Vec::new();
+    if source_count < required_cross_checks {
+        blockers.push("insufficient-independent-sources".to_string());
+    }
+    if distinct_claim_count > 1 || confidence.conflict_level != "none" {
+        blockers.push("conflicting-claims-require-review".to_string());
+    }
+    if !all_quarantined {
+        blockers.push("source-quarantine-incomplete".to_string());
+    }
+    if confidence.freshness_state == "not-current" {
+        blockers.push("freshness-not-current".to_string());
+    }
+
+    EvidenceValidationContract {
+        observation_count: observations.len(),
+        source_count,
+        distinct_claim_count,
+        required_cross_checks,
+        cross_check_state: cross_check_state.to_string(),
+        conflict_state: conflict_state.to_string(),
+        quarantine_state: quarantine_state.to_string(),
+        admission_decision: admission_decision.to_string(),
+        summary_allowed,
+        durable_write_allowed: false,
+        gates: vec![
+            "independent-source-count-before-summary".to_string(),
+            "same-claim-or-conflict-review-before-summary".to_string(),
+            "all-source-output-quarantined-before-summary".to_string(),
+            "freshness-visible-before-summary".to_string(),
+            "human-review-before-durable-write".to_string(),
+            "no-automatic-zhishu-admission".to_string(),
+        ],
+        blockers,
+        denied_actions: vec![
+            "summarize-insufficient-cross-checks".to_string(),
+            "summarize-conflicting-claims-without-review".to_string(),
+            "trust-unquarantined-source-output".to_string(),
+            "write-l2-from-aggregation-without-review".to_string(),
+            "deliver-aggregation-without-human-review".to_string(),
+        ],
     }
 }
 
@@ -281,6 +392,8 @@ pub fn import_source_observations(
         .map(|row| import_row_to_observation(row, now))
         .collect::<Result<Vec<_>, String>>()?;
     let confidence = assess_confidence(&observations, observations.len().min(3).max(1));
+    let evidence_validation =
+        validate_evidence_contract(&observations, &confidence, observations.len().min(3).max(1));
 
     Ok(SourceImportReceipt {
         format,
@@ -291,6 +404,7 @@ pub fn import_source_observations(
             "manual-paste-only".to_string(),
             "no-file-path-access".to_string(),
             "bounded-structured-input".to_string(),
+            evidence_validation.cross_check_state,
             "quarantine-before-use".to_string(),
             "review-before-zhishu-admission".to_string(),
         ],
@@ -811,6 +925,12 @@ mod tests {
 
         assert_eq!(preview.confidence.conflict_level, "material");
         assert_eq!(preview.confidence.admission_state, "manual-review-required");
+        assert_eq!(
+            preview.evidence_validation.conflict_state,
+            "conflict-review-required"
+        );
+        assert!(!preview.evidence_validation.summary_allowed);
+        assert!(!preview.evidence_validation.durable_write_allowed);
         assert!(preview.confidence.score < 0.6);
         assert!(preview
             .observations
@@ -824,9 +944,37 @@ mod tests {
 
         assert_eq!(preview.confidence.freshness_state, "not-current");
         assert!(preview
+            .evidence_validation
+            .blockers
+            .contains(&"freshness-not-current".to_string()));
+        assert!(preview
             .observations
             .iter()
             .all(|observation| observation.fallback_used));
+    }
+
+    #[test]
+    fn evidence_validation_requires_independent_sources_and_blocks_durable_write() {
+        let preview = preview_for_query("stable writing skill".to_string(), false);
+
+        assert_eq!(
+            preview.evidence_validation.cross_check_state,
+            "cross-check-passed"
+        );
+        assert_eq!(
+            preview.evidence_validation.quarantine_state,
+            "all-sources-quarantined"
+        );
+        assert_eq!(
+            preview.evidence_validation.admission_decision,
+            "reviewable-summary-only"
+        );
+        assert!(preview.evidence_validation.summary_allowed);
+        assert!(!preview.evidence_validation.durable_write_allowed);
+        assert!(preview
+            .evidence_validation
+            .denied_actions
+            .contains(&"write-l2-from-aggregation-without-review".to_string()));
     }
 
     #[test]

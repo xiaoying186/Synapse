@@ -48,6 +48,10 @@ pub fn list_task_artifacts(
     list_task_artifacts_at(&paths::task_artifact_path(), run_id.as_deref(), limit)
 }
 
+pub fn remove_task_artifacts(artifact_ids: Vec<String>) -> Result<(), StoreError> {
+    remove_task_artifacts_at(&paths::task_artifact_path(), artifact_ids)
+}
+
 pub(crate) fn append_task_artifacts_at(
     path: &Path,
     run_id: String,
@@ -82,6 +86,23 @@ pub(crate) fn append_task_artifacts_at(
     records.truncate(MAX_TASK_ARTIFACTS);
     write_json_records(path, &records)?;
     Ok(created)
+}
+
+fn remove_task_artifacts_at(path: &Path, artifact_ids: Vec<String>) -> Result<(), StoreError> {
+    let artifact_ids = artifact_ids
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<std::collections::HashSet<_>>();
+    if artifact_ids.is_empty() {
+        return Ok(());
+    }
+    let records = read_task_artifacts(path)?;
+    let retained = records
+        .into_iter()
+        .filter(|record| !artifact_ids.contains(&record.id))
+        .collect::<Vec<_>>();
+    write_json_records(path, &retained)
 }
 
 pub(crate) fn list_task_artifacts_at(
@@ -146,6 +167,40 @@ mod tests {
         assert_eq!(records[0].reference_id, "candidate-1");
         assert_eq!(records[0].metadata["score"], 0.7);
 
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn removes_only_requested_task_artifacts_for_compensation() {
+        let path = temp_artifact_path("remove");
+        let created = append_task_artifacts_at(
+            &path,
+            "run-1".to_string(),
+            "direction-1".to_string(),
+            vec![
+                NewTaskArtifact {
+                    artifact_type: "daily-briefing".to_string(),
+                    reference_id: "briefing-1".to_string(),
+                    title: "Briefing".to_string(),
+                    summary: String::new(),
+                    metadata: json!({}),
+                },
+                NewTaskArtifact {
+                    artifact_type: "daily-briefing".to_string(),
+                    reference_id: "briefing-2".to_string(),
+                    title: "Briefing".to_string(),
+                    summary: String::new(),
+                    metadata: json!({}),
+                },
+            ],
+        )
+        .unwrap();
+
+        remove_task_artifacts_at(&path, vec![created[0].id.clone()]).unwrap();
+        let remaining = list_task_artifacts_at(&path, None, 10).unwrap();
+
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, created[1].id);
         let _ = fs::remove_file(path);
     }
 }

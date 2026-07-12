@@ -15,7 +15,9 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod audit_event;
 mod history;
 mod memory;
+mod notification_delivery_attempt;
 mod paths;
+mod provider_receipt;
 mod queue;
 mod repository;
 mod saga;
@@ -37,33 +39,58 @@ pub use memory::{
     append_zhishu_item, recent_memory_items, review_memory_item, rollback_memory_item_snapshot,
     MemoryItem, MemoryRollbackReceipt,
 };
+pub use notification_delivery_attempt::{
+    begin_notification_delivery_attempt, list_notification_delivery_attempts,
+    reconcile_notification_delivery_attempt, transition_notification_delivery_attempt,
+    NotificationDeliveryAttempt, NotificationDeliveryReconciliationReceipt,
+};
+pub(crate) use memory::{
+    append_provider_artifact_zhishu_candidate_at, review_memory_item_with_protection_at,
+};
 pub(crate) use paths::{
-    arsenal_allowlist_path, arsenal_tools_path, audit_event_path, device_sync_state_path,
-    local_apps_path, task_artifact_path,
+    active_data_root, arsenal_allowlist_path, arsenal_tools_path, audit_event_path, device_sync_state_path,
+    configure_runtime_data_root, local_apps_path, source_registry_approval_path, task_artifact_path,
+};
+#[cfg(test)]
+pub(crate) use paths::with_test_data_root;
+pub use provider_receipt::{
+    create_provider_artifact_zhishu_candidate, create_provider_receipt_task_artifact,
+    preflight_provider_artifact_zhishu_admission, preflight_provider_receipt_task_artifact,
+    provider_receipt_review_candidates, review_provider_artifact_zhishu_admission,
+    review_provider_artifact_zhishu_candidate, review_provider_receipt_review_candidate,
+    stage_provider_receipt_review_candidate, ProviderArtifactAdmissionReview,
+    ProviderArtifactAdmissionReviewReceipt, ProviderArtifactZhishuAdmissionPreflight,
+    ProviderArtifactZhishuCandidateReceipt, ProviderArtifactZhishuFinalReviewReceipt,
+    ProviderReceiptReviewCandidate, ProviderReceiptReviewDecisionReceipt,
+    ProviderReceiptReviewQueueReceipt, ProviderReceiptTaskArtifactPreflight,
+    ProviderReceiptTaskArtifactReceipt,
 };
 pub use queue::{append_execution, ExecutionRecord};
 pub use repository::{
     export_zhishu_repository, import_zhishu_repository, ZhishuRepositoryBundle,
     ZhishuRepositoryImportReceipt,
 };
+#[cfg(test)]
+pub(crate) use repository::import_zhishu_repository_at;
 pub use saga::{begin_saga, get_saga, list_sagas, transition_saga, SagaTransaction};
 pub use scheduler_state::{
     acquire_scheduler_lease, heartbeat_scheduler_lease, read_scheduler_state,
     record_scheduler_tick_result, release_scheduler_lease, SchedulerPersistentState,
 };
+pub(crate) use snapshot::create_snapshot_at;
 pub use snapshot::{create_snapshot, get_snapshot, list_snapshots, SnapshotRecord};
 pub use source_observation::{
-    append_source_observations, list_source_observations, NewSourceObservationRecord,
+    append_source_observations, list_source_observations, remove_source_observations, NewSourceObservationRecord,
     SourceObservationRecord,
 };
 pub(crate) use task_artifact::append_task_artifacts_at;
 pub use task_artifact::{
-    append_task_artifacts, list_task_artifacts, NewTaskArtifact, TaskArtifactRecord,
+    append_task_artifacts, list_task_artifacts, remove_task_artifacts, NewTaskArtifact, TaskArtifactRecord,
 };
 pub use task_center::{
     append_task_direction, archive_task_run, cancel_task_run, complete_domain_task_run,
     execute_task_run, generate_task_candidates, recover_interrupted_task_runs, request_task_run,
-    restore_task_direction, review_task_candidate, review_task_run, set_task_direction_active,
+    restore_task_direction, restore_task_run, review_task_candidate, review_task_run, set_task_direction_active,
     task_candidates, task_directions, task_run_by_id, task_run_records, task_schedule_previews,
     task_scheduler_tick, TaskCandidate, TaskCandidateReview, TaskDirection,
     TaskRunExecutionReceipt, TaskRunRecord, TaskSchedulePreview, TaskSchedulerTick,

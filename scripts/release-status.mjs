@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 
@@ -30,6 +30,7 @@ const freshnessInputs = [
   "docs/RELEASE_DISTRIBUTION_NOTES.md",
   "docs/SOURCE_REGISTRY.md",
   ".github/workflows/public-baseline.yml",
+  ".github/workflows/manual-release.yml",
   ".github/ISSUE_TEMPLATE/bug_report.yml",
   ".github/ISSUE_TEMPLATE/documentation_fix.yml",
   ".github/ISSUE_TEMPLATE/feature_request.yml",
@@ -39,15 +40,21 @@ const freshnessInputs = [
   "scripts/release-evidence.mjs",
   "scripts/release-status.mjs",
   "scripts/release-doctor.mjs",
+  "scripts/release-acceptance.mjs",
+  "scripts/installer-smoke.ps1",
   "scripts/git-diagnose.mjs",
   "scripts/wix-diagnose.mjs",
   "scripts/ui-smoke.mjs",
+  "scripts/ui-smoke-tauri-mock.js",
   "src/App.tsx",
   "src/App.css",
+  "src/app/useNotificationGateway.ts",
   "src-tauri/Cargo.toml",
   "src-tauri/Cargo.lock",
   "src-tauri/tauri.conf.json",
+  "src-tauri/src/lib.rs",
   "src-tauri/src/domains/agent_harness.rs",
+  "src-tauri/src/domains/notification_gateway.rs",
   "src-tauri/src/domains/context_budget.rs",
   "src-tauri/src/domains/library_home.rs",
   "src-tauri/src/domains/computer_diagnostics.rs",
@@ -62,8 +69,18 @@ const freshnessInputs = [
   "src/components/WebAppShellPanel.tsx",
   "src/components/CodebaseMemoryPanel.tsx",
   "src/components/PermissionMemoryPanel.tsx",
+  "src/components/NotificationGatewayPanel.tsx",
+  "src/i18n/localizeText.ts",
   ".tmp/ui-smoke/desktop.png",
   ".tmp/ui-smoke/mobile.png",
+];
+const freshnessInputDirectories = [
+  "src",
+  "src-tauri/src",
+  "src-tauri/scripts",
+  "scripts",
+  "docs",
+  ".github/workflows",
 ];
 
 function line(message) {
@@ -146,6 +163,7 @@ line("Synapse release status");
 line(`Project: ${root}`);
 line(`[STATE] ${review.state}`);
 line(`[READY] ${review.ready ? "true" : "false"}`);
+line(`[DISTRIBUTION] ${review.distribution_tier ?? "unknown"}`);
 line(`[SCHEMA] ${evidence.schema_version}`);
 line(`[GENERATED] ${evidence.generated_at ?? "unknown"}`);
 if (staleInputs.length > 0) {
@@ -157,10 +175,22 @@ if (staleInputs.length > 0) {
 }
 
 const artifact = review.artifact_readiness ?? {};
+const hasDistributableInstaller = Boolean(
+  artifact.has_distributable_installer ?? artifact.has_distributable_msi,
+);
 line(
-  `[ARTIFACTS] release_msi=${artifact.release_msi_count ?? "unknown"} debug_msi=${
-    artifact.debug_msi_count ?? "unknown"
-  } distributable=${artifact.has_distributable_msi ? "true" : "false"}`,
+  `[ARTIFACTS] release_installer=${artifact.release_installer_count ?? artifact.release_msi_count ?? "unknown"} debug_installer=${
+    artifact.debug_installer_count ?? artifact.debug_msi_count ?? "unknown"
+  } nsis=${artifact.release_nsis_count ?? "unknown"} msi=${artifact.release_msi_count ?? "unknown"} distributable=${
+    hasDistributableInstaller ? "true" : "false"
+  } installer_smoke=${artifact.installer_smoke_verified ? "true" : "false"}`,
+);
+line(
+  `[SIGNING] mode=${artifact.signing_mode ?? "unknown"} unsigned_preview_allowed=${
+    artifact.unsigned_preview_allowed ? "true" : "false"
+  } signed_installer=${artifact.signed_installer_count ?? "unknown"} all_release_installers_signed=${
+    artifact.all_release_installers_signed ? "true" : "false"
+  }`,
 );
 
 if (review.blockers?.length) {
@@ -177,7 +207,11 @@ if (staleInputs.length > 0) {
   process.exit(1);
 }
 
-line("[PASS] Release evidence reports no blockers.");
+if (review.distribution_tier === "unsigned-preview-review") {
+  line("[PASS] Release evidence permits an explicit unsigned preview only; it is not signed production distribution.");
+} else {
+  line("[PASS] Release evidence reports no blockers.");
+}
 
 function findStaleInputs(generatedAt) {
   let evidenceTimestamp = Date.parse(generatedAt ?? "");
@@ -189,11 +223,41 @@ function findStaleInputs(generatedAt) {
     return freshnessInputs;
   }
   const toleranceMs = 1000;
-  return freshnessInputs.filter((relativePath) => {
+  const inputs = [
+    ...new Set(
+      [...freshnessInputs, ...collectFreshnessInputFiles()].map((relativePath) =>
+        relativePath.replaceAll("\\", "/"),
+      ),
+    ),
+  ];
+  return inputs.filter((relativePath) => {
     const absolutePath = join(root, relativePath);
     if (!existsSync(absolutePath)) {
       return false;
     }
     return statSync(absolutePath).mtimeMs > evidenceTimestamp + toleranceMs;
   });
+}
+
+function collectFreshnessInputFiles() {
+  return freshnessInputDirectories.flatMap((relativeDirectory) =>
+    collectFilesRecursively(relativeDirectory),
+  );
+}
+
+function collectFilesRecursively(relativeDirectory) {
+  const absoluteDirectory = join(root, relativeDirectory);
+  if (!existsSync(absoluteDirectory)) {
+    return [];
+  }
+  const files = [];
+  for (const entry of readdirSync(absoluteDirectory, { withFileTypes: true })) {
+    const relativePath = join(relativeDirectory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectFilesRecursively(relativePath));
+    } else if (entry.isFile()) {
+      files.push(relativePath);
+    }
+  }
+  return files;
 }

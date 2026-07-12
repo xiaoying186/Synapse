@@ -1,28 +1,48 @@
 # Synapse 0.0.0 Public Baseline Distribution Notes
 
-These notes describe the guarded Windows MSI release path for Synapse `0.0.0`,
+These notes describe the guarded Windows installer release path for Synapse `0.0.0`,
 the initial public baseline aligned with internal `Synapse Design V6.6`. They
 are intentionally conservative: do not use them to claim unrestricted
 automation, external delivery, or production cloud readiness.
 
+Authenticode verification passes installer paths through a process-local environment variable so Windows paths with spaces or special characters are treated as literal paths. A result of `NotSigned` is an expected release blocker in signed mode, not a successful verification.
+
 ## Release Preconditions
 
 - `npm.cmd run preflight` passes on the release machine.
-- `npm.cmd run preflight:release` passes after Git metadata and WiX tooling are
-  ready.
+- `npm.cmd run preflight:release` passes after Git metadata is ready.
+- `cargo test task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission`
+  passes so the Xingtai direction -> approval -> execution -> artifact -> L1
+  admission loop remains covered.
+- `cargo test production_readiness` passes so app-visible readiness evidence is
+  still generated.
 - `npm.cmd run smoke:ui` passes. If Playwright is available, keep the generated
   `.tmp/ui-smoke/desktop.png` and `.tmp/ui-smoke/mobile.png` as local release
   evidence.
+- `npm.cmd run tauri:build:release` produces the NSIS installer.
+- `npm.cmd run release:acceptance` verifies installer artifacts and SHA-256
+  sidecars.
+- `npm.cmd run release:smoke:installer` installs, launches, and uninstalls the
+  NSIS installer.
 - Production Readiness in the app has no unexplained blocked or
   release-blocked checks.
 - Library Home shows no active, failed, or unresolved Saga transaction.
 - `synapse.config.toml` keeps external delivery, Agent execution, and relay
   upload disabled unless this is an explicit private test build.
 
-## Windows MSI Tooling
+## Windows Installer Tooling
 
-The checked-in bundle target is MSI. Before packaging on Windows, make sure one
-of these is true:
+The default public preview installer is NSIS:
+
+```text
+src-tauri/target/release/bundle/nsis/Synapse_0.0.0_x64-setup.exe
+```
+
+It is configured as a current-user installer so it can install without
+administrator rights in the normal preview path.
+
+MSI packaging may still be used for administrator or enterprise deployment
+candidates. Before MSI packaging on Windows, make sure one of these is true:
 
 - WiX v3 tools are on PATH: `candle.exe` and `light.exe`.
 - WiX CLI is on PATH: `wix.exe`.
@@ -34,35 +54,38 @@ Run the local diagnosis first:
 npm.cmd run wix:diagnose
 ```
 
-If WiX is missing, Tauri may try to download `wix314-binaries.zip` during
+If WiX is missing, Tauri may try to download `wix314-binaries.zip` during MSI
 bundling. That is not a reliable release process for an offline or restricted
-machine.
+machine. Some local Windows environments can also fail WiX ICE validation even
+after generating an MSI; use the NSIS installer as the public preview default
+unless MSI has been separately validated on the release machine.
 
 ## Build Command
 
 Use the Tauri build script from the repository root:
 
 ```powershell
-npm.cmd run tauri:build
+npm.cmd run tauri:build:release
 ```
 
-For a debug packaging rehearsal:
+This builds the NSIS current-user installer. For a debug packaging rehearsal:
 
 ```powershell
 npm.cmd run tauri -- build --debug
 ```
 
-Expected Windows MSI output lives under:
+Expected Windows installer output lives under:
 
 ```text
+src-tauri/target/release/bundle/nsis/
 src-tauri/target/release/bundle/msi/
+src-tauri/target/debug/bundle/nsis/
 src-tauri/target/debug/bundle/msi/
 ```
 
-Only MSI files under `src-tauri/target/release/bundle/msi/` are release
-distribution candidates. Debug MSI files under
-`src-tauri/target/debug/bundle/msi/` are packaging rehearsals and must not be
-shared as a formal release.
+Only files under `src-tauri/target/release/bundle/` are release distribution
+candidates. Debug installer files under `src-tauri/target/debug/bundle/` are
+packaging rehearsals and must not be shared as a formal release.
 
 ## Signing
 
@@ -98,13 +121,19 @@ with `allow_unsigned = true`. The workflow then skips code signing, still
 generates SHA-256 files, and marks the GitHub Release notes as an unsigned
 preview installer. Do not present that asset as a trusted production installer.
 
+Release evidence distinguishes `ready-for-unsigned-preview-review` from
+`ready-for-signed-production-review`. The former permits only an explicitly
+allowed preview release; Production Readiness must continue to show it as a
+review-required warning until every distributable installer has a valid trusted
+Authenticode signature.
+
 Before distributing outside a private local test:
 
 - Use a trusted code-signing certificate owned by the operator or release
   organization.
 - Keep signing certificates, passwords, tokens, and timestamp credentials out of
   Git and out of `.synapse/`.
-- Confirm the manual release workflow signs and verifies the final MSI.
+- Confirm the manual release workflow signs and verifies the final installer.
 - Timestamp the signature so the installer remains verifiable after certificate
   expiry.
 - Record the certificate subject, timestamp authority, and signed artifact path
@@ -117,19 +146,20 @@ Do not commit signing secrets or populated signing config.
 After building and signing, record hashes for every distributed artifact:
 
 ```powershell
-Get-FileHash .\path\to\Synapse_*.msi -Algorithm SHA256
+Get-FileHash .\path\to\Synapse_*.exe -Algorithm SHA256
 ```
 
 Keep the SHA-256 hash next to the release notes. For GitHub Releases, include
-the hash in the release body so the downloaded MSI can be verified.
+the hash in the release body so the downloaded installer can be verified.
 
-The repository includes a helper for the current public MSI:
+The repository includes a helper for current public installer artifacts:
 
 ```powershell
 npm.cmd run release:sha256
 ```
 
-This writes `Synapse_0.0.0_x64_en-US.msi.sha256` next to the MSI.
+This writes `.sha256` sidecars next to every generated `.msi` and `.exe`
+installer artifact.
 
 You can also generate a local release evidence bundle:
 
@@ -144,8 +174,8 @@ non-zero when release preflight still has blockers, but it keeps the generated
 evidence so the blockers can be reviewed. When UI smoke screenshots exist under
 `.tmp/ui-smoke/`, their SHA-256 hashes are included in the evidence bundle. The
 evidence bundle also embeds the dry-run Git bootstrap and WiX diagnosis output.
-MSI artifacts are labeled as release or debug so rehearsal installers are not
-mistaken for distributable release artifacts.
+Installer artifacts are labeled as release or debug so rehearsal installers are
+not mistaken for distributable release artifacts.
 
 For automation, read the top-level `release_review` object in
 `.tmp/release-evidence/release-evidence.json`. It reports whether the snapshot is
@@ -180,12 +210,12 @@ Before publishing a GitHub snapshot or release:
   history needs to be preserved.
 - `npm.cmd run preflight:release` passes.
 - The `Synapse 0.0.0 Public Baseline` GitHub Actions workflow passes after pushing. It
-  verifies local baseline gates and does not replace MSI packaging or signing
-  verification.
+  verifies local baseline gates and does not replace installer packaging,
+  signing, or installer smoke verification.
 - `git status --short` contains only intentional source and documentation
   changes.
 - `.synapse/`, `.codegraph/`, `dist/`, `target/`, local databases, logs, and
-  generated MSI files are not committed.
+  generated installer files are not committed.
 - No webhook URLs, SMTP credentials, signing credentials, `.env` files, or local
   user data are committed.
 - Internal Design V6.6 documents are included only if they are intended to be public.

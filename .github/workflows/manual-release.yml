@@ -60,6 +60,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
       - name: Secret Guard scan
         run: npm.cmd run secret:scan
 
@@ -69,8 +72,102 @@ jobs:
       - name: I18n key sync
         run: npm.cmd run i18n:check
 
-      - name: Build frontend
-        run: npm.cmd run build
+      - name: Product UI acceptance smoke
+        env:
+          SYNAPSE_REQUIRE_BROWSER_SMOKE: "true"
+        run: npm.cmd test
+
+      - name: Rust check
+        run: cargo check
+        working-directory: src-tauri
+
+      - name: Rust Zhishu retrieval acceptance
+        run: cargo test zhishu_retrieval_acceptance_finds_reviewed_l2_memory_after_admission
+        working-directory: src-tauri
+
+      - name: Rust Xingtai task loop acceptance
+        run: cargo test task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission
+        working-directory: src-tauri
+
+      - name: Rust Xingtai scheduler acceptance
+        run: cargo test scheduled_task_loop_acceptance_covers_tick_approval_execution_and_memory_admission
+        working-directory: src-tauri
+
+      - name: Rust Permission Memory acceptance
+        run: cargo test permission_memory
+        working-directory: src-tauri
+
+      - name: Rust Codebase Memory acceptance
+        run: cargo test codebase_memory
+        working-directory: src-tauri
+
+      - name: Rust notification mock receipt acceptance
+        run: cargo test feishu_wechat_mock_receipt_contract_never_marks_external_delivery_started
+        working-directory: src-tauri
+
+      - name: Rust notification webhook staging acceptance
+        run: cargo test webhook_staging_policy_blocks_external_delivery_without_gate
+        working-directory: src-tauri
+
+      - name: Rust notification webhook envelope acceptance
+        run: cargo test webhook_staging_envelope_redacts_destination_and_never_starts_network
+        working-directory: src-tauri
+
+      - name: Rust notification webhook staging preflight acceptance
+        run: cargo test webhook_staging_preflight_scope_requires_loopback_signature_and_gate
+        working-directory: src-tauri
+
+      - name: Rust notification webhook staging delivery acceptance
+        run: cargo test loopback_staging_webhook_posts_signed_headers_without_secret_persistence
+        working-directory: src-tauri
+
+      - name: Rust Daily Briefing evidence acceptance
+        run: cargo test daily_briefing
+        working-directory: src-tauri
+
+      - name: Rust Source Registry contract acceptance
+        run: cargo test source_registry
+        working-directory: src-tauri
+
+      - name: Rust Device Sync acceptance
+        run: cargo test device_sync
+        working-directory: src-tauri
+
+      - name: Rust browser action policy acceptance
+        run: cargo test browser_automation
+        working-directory: src-tauri
+
+      - name: Rust Local App Bridge acceptance
+        run: cargo test local_app_bridge
+        working-directory: src-tauri
+
+      - name: Rust Agent team real preflight acceptance
+        run: cargo test real_team_preflight
+        working-directory: src-tauri
+
+      - name: Rust Agent Harness transaction acceptance
+        run: cargo test agent_harness
+        working-directory: src-tauri
+
+      - name: Rust Agent team transaction acceptance
+        run: cargo test agent_team
+        working-directory: src-tauri
+
+      - name: Rust Agent team real staging acceptance
+        run: cargo test real_staging_receipts_hash_inputs_and_never_start_processes
+        working-directory: src-tauri
+
+      - name: Rust computer diagnostics acceptance
+        run: cargo test computer_diagnostics
+        working-directory: src-tauri
+
+      - name: Rust Skill Library acceptance
+        run: cargo test skill_library
+        working-directory: src-tauri
+
+      - name: Rust production readiness checks
+        run: cargo test production_readiness
+        working-directory: src-tauri
 
       - name: Synchronize release version in workspace
         shell: pwsh
@@ -93,8 +190,11 @@ jobs:
           $cargo = $cargo -replace '(?m)^description\s*=\s*".*"$', "description = `"Synapse $version - Local-first public release aligned with internal Design V6.6`""
           Set-Content $cargoPath $cargo -Encoding UTF8
 
+      - name: Build frontend
+        run: npm.cmd run build
+
       - name: Build Tauri installer
-        run: npm.cmd run tauri:build
+        run: npm.cmd run tauri:build:release
 
       - name: Sign Windows installers
         shell: pwsh
@@ -120,8 +220,7 @@ jobs:
 
           $installers = Get-ChildItem $bundleRoot -Recurse -File |
             Where-Object {
-              $_.Extension -in @(".msi", ".exe") -or
-              $_.FullName -match "\\nsis\\"
+              $_.Extension -in @(".msi", ".exe")
             } |
             Sort-Object FullName
 
@@ -180,8 +279,7 @@ jobs:
 
           $installers = Get-ChildItem $bundleRoot -Recurse -File |
             Where-Object {
-              $_.Extension -in @(".msi", ".exe") -or
-              $_.FullName -match "\\nsis\\"
+              $_.Extension -in @(".msi", ".exe")
             } |
             Sort-Object FullName
 
@@ -202,6 +300,12 @@ jobs:
           $uploadArgs | Set-Content -LiteralPath $uploadFile -Encoding utf8
           "upload_file=$uploadFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      - name: Release acceptance gate
+        run: npm.cmd run release:acceptance
+
+      - name: Installer smoke test
+        run: npm.cmd run release:smoke:installer
+
       - name: Create release notes
         shell: pwsh
         run: |
@@ -213,8 +317,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $uploadFiles = Get-Content -LiteralPath "${{ steps.artifacts.outputs.upload_file }}"
+          $releaseFlags = @()
+          if ($env:SYNAPSE_ALLOW_UNSIGNED -eq "true") {
+            $releaseFlags += "--prerelease"
+          }
+
           gh release create $env:SYNAPSE_RELEASE_TAG `
             --title "Synapse v$env:SYNAPSE_RELEASE_VERSION" `
             --notes-file "$env:RUNNER_TEMP/release-notes.md" `
             --target "$env:GITHUB_SHA" `
+            @releaseFlags `
             @uploadFiles

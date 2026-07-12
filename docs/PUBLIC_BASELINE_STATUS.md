@@ -21,9 +21,10 @@ is not a stable production automation release.
 - Browser automation is limited to read-only, allowlisted inspection.
 - Local application integration is guarded and does not extract existing app
   session or window content.
-- Data Source Registry is a lightweight governance preview only; it does not
-  store credentials, run background polling, process heavy data, or fetch live
-  sources.
+- Data Source Registry is a lightweight governance preview only. Manual source
+  enablement records are snapshotted, audited, and compensatable, but the
+  registry does not store credentials, run background polling, process heavy
+  data, or fetch live sources by itself.
 
 ## Not Included In This Baseline
 
@@ -40,11 +41,14 @@ is not a stable production automation release.
 
 ## Release State
 
-- Windows MSI packaging is supported by the checked-in Tauri configuration.
-  Release artifacts must be rebuilt after version or bundle metadata changes.
-- GitHub Releases may distribute `Synapse_0.0.0_x64_en-US.msi` only with a
-  matching SHA-256 sidecar and guarded baseline release notes.
-- Debug MSI artifacts must not be distributed as official releases.
+- Windows NSIS packaging is the default public preview route. Release artifacts
+  must be rebuilt after version or bundle metadata changes.
+- GitHub Releases may distribute `Synapse_0.0.0_x64-setup.exe` only with a
+  matching SHA-256 sidecar, guarded baseline release notes, and installer smoke
+  evidence.
+- MSI artifacts, when present, are administrator or enterprise deployment
+  candidates. Debug installer artifacts must not be distributed as official
+  releases.
 - A public GitHub release should wait until `LICENSE`, `SECURITY.md`,
   `VERSIONING.md`, `docs/CAPABILITY_MATRIX.md`,
   `docs/CONFIG_CAPABILITY_MATRIX.md`, `docs/CLAIM_BOUNDARIES.md`, and

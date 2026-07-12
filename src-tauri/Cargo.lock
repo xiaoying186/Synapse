@@ -3338,6 +3338,7 @@ name = "synapse"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "hex",
  "lettre",
  "reqwest 0.12.28",

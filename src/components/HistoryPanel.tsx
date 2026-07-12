@@ -1,4 +1,5 @@
 import type { ExecutionRecord, PlanPreview, PlanRecord, ReviewReceipt } from "../types";
+import { useI18n } from "../i18n";
 
 type HistoryPanelProps = {
   activePlanId: string | null;
@@ -13,6 +14,8 @@ type HistoryPanelProps = {
 };
 
 export function HistoryPanel({ activePlanId, history, onClear, onSelect }: HistoryPanelProps) {
+  const { text } = useI18n();
+
   if (history.length === 0) {
     return null;
   }
@@ -21,11 +24,11 @@ export function HistoryPanel({ activePlanId, history, onClear, onSelect }: Histo
     <section className="panel history-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Decision trace</p>
-          <h3>Recent plans</h3>
+          <p className="eyebrow">{text("Decision trace")}</p>
+          <h3>{text("Recent plans")}</h3>
         </div>
         <button className="text-action" type="button" onClick={onClear}>
-          Clear
+          {text("Clear")}
         </button>
       </div>
       <div className="history-list">
@@ -43,9 +46,9 @@ export function HistoryPanel({ activePlanId, history, onClear, onSelect }: Histo
               })
             }
           >
-            <span>{record.preview.risk}</span>
+            <span>{text(record.preview.risk)}</span>
             <strong>{record.preview.intent}</strong>
-            <small>{record.preview.audit_report.decision}</small>
+            <small>{text(record.preview.audit_report.decision)}</small>
           </button>
         ))}
       </div>

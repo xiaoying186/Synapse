@@ -67,9 +67,12 @@ claim boundaries.
 
 For Windows desktop use, download an installer from
 [GitHub Releases](https://github.com/xiaoying186/Synapse/releases) only when a
-release includes an MSI or EXE asset and a matching `.sha256` file. Verify the
-checksum before installing. Current public installers are unsigned unless the
-release notes explicitly say otherwise.
+release includes a Windows installer asset and a matching `.sha256` file.
+The recommended public preview installer is the NSIS `Synapse_*_x64-setup.exe`
+because it installs for the current user without administrator rights. MSI
+artifacts, when present, are administrator or enterprise deployment candidates.
+Verify the checksum before installing. Current public installers are unsigned
+unless the release notes explicitly say otherwise.
 
 For development from source, install Node.js, Rust stable MSVC, WebView2, and
 the Tauri prerequisites for Windows.
@@ -104,6 +107,7 @@ distribution is limited to guarded GitHub Releases and desktop installers.
 - [Installation guide](docs/INSTALLATION.md)
 - [Local data and privacy](docs/LOCAL_DATA_AND_PRIVACY.md)
 - [Public baseline status](docs/PUBLIC_BASELINE_STATUS.md)
+- [Production gap matrix](docs/PRODUCTION_GAP_MATRIX.md)
 - [Public roadmap](docs/PUBLIC_ROADMAP.md)
 - [Release checklist](docs/RELEASE_CHECKLIST.md)
 - [Release distribution notes](docs/RELEASE_DISTRIBUTION_NOTES.md)
@@ -138,13 +142,15 @@ Maintainers can publish a versioned Windows installer with the manual
 `Synapse Manual Release` GitHub Actions workflow
 (`.github/workflows/manual-release.yml`). Trigger it from the Actions tab, enter
 a SemVer-style version such as `0.0.1`, and verify that it creates a
-`v{version}` release with signed installer assets, matching `.sha256` files,
-and release notes generated from `CHANGELOG.md`. The workflow requires
+`v{version}` release with installer assets, matching `.sha256` files, installer
+smoke-test evidence, and release notes generated from `CHANGELOG.md`. The
+workflow builds the NSIS current-user installer as the default distributable.
+Unless `allow_unsigned` is explicitly enabled for preview testing, it requires
 `WINDOWS_SIGNING_CERT_BASE64` and `WINDOWS_SIGNING_CERT_PASSWORD` repository
 secrets before it will publish a Windows installer.
 
 The checked-in source remains on the `0.0.0` public baseline unless a separate
 version-bump commit is intentionally made. The manual release workflow
 temporarily synchronizes `package.json`, `src-tauri/tauri.conf.json`, and
-`src-tauri/Cargo.toml` in the runner workspace before packaging. Debug MSI
-artifacts must not be distributed as official releases.
+`src-tauri/Cargo.toml` in the runner workspace before packaging. Debug MSI or
+NSIS artifacts must not be distributed as official releases.

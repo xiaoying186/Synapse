@@ -1,11 +1,12 @@
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{arsenal, store};
+use crate::{arsenal, config, store};
 
 const MAX_INPUT_CHARS: usize = 8_000;
 const MAX_CONTEXT_ITEMS: usize = 5;
@@ -76,6 +77,19 @@ pub struct AgentExecutionReceipt {
     pub safety_checks: Vec<AgentSafetyCheck>,
     pub artifact: store::TaskArtifactRecord,
     pub run: store::TaskRunRecord,
+    pub audit_event: store::AuditEvent,
+    pub saga: store::SagaTransaction,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentQuarantineExecutionReceipt {
+    pub dry_run: AgentDryRunReceipt,
+    pub state: String,
+    pub exit_code: i32,
+    pub output_truncated: bool,
+    pub rollback_snapshot: store::SnapshotRecord,
+    pub safety_checks: Vec<AgentSafetyCheck>,
+    pub artifact: store::TaskArtifactRecord,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,6 +97,48 @@ pub struct AgentSafetyCheck {
     pub id: String,
     pub state: String,
     pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentAdapterSmokeItem {
+    pub tool_id: String,
+    pub tool_label: String,
+    pub discovery_state: String,
+    pub allow_state: String,
+    pub command_contract: Vec<String>,
+    pub execution_enabled: bool,
+    pub process_started: bool,
+    pub gates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentAdapterSmokeReport {
+    pub state: String,
+    pub agent_count: usize,
+    pub detected_count: usize,
+    pub execution_enabled: bool,
+    pub process_started: bool,
+    pub adapters: Vec<AgentAdapterSmokeItem>,
+    pub gates: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RealAgentPreflightBlocker {
+    pub id: String,
+    pub state: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RealAgentExecutionPreflight {
+    pub state: String,
+    pub dry_run: AgentDryRunReceipt,
+    pub execution_enabled: bool,
+    pub process_started: bool,
+    pub task_content_sent: bool,
+    pub required_approvals: Vec<String>,
+    pub blockers: Vec<RealAgentPreflightBlocker>,
+    pub gates: Vec<String>,
 }
 
 pub fn dry_run(request: AgentDryRunRequest) -> Result<AgentDryRunReceipt, store::StoreError> {
@@ -115,10 +171,312 @@ pub fn dry_run(request: AgentDryRunRequest) -> Result<AgentDryRunReceipt, store:
     Ok(receipt)
 }
 
+pub fn preflight_real_execution(
+    request: AgentDryRunRequest,
+) -> Result<RealAgentExecutionPreflight, store::StoreError> {
+    let dry_run = dry_run_contract(request)?;
+    Ok(real_execution_preflight_from_dry_run(
+        dry_run,
+        config::read_runtime_config().agent_execution_enabled,
+    ))
+}
+
+fn real_execution_preflight_from_dry_run(
+    dry_run: AgentDryRunReceipt,
+    agent_execution_enabled: bool,
+) -> RealAgentExecutionPreflight {
+    let mut blockers = Vec::new();
+    if dry_run.tool_id != "agent-codex" {
+        blockers.push(preflight_blocker(
+            "unsupported-real-agent-adapter",
+            "blocked",
+            "Only the Codex CLI adapter has a guarded real-execution contract.",
+        ));
+    }
+    if dry_run.discovery_state != "detected" {
+        blockers.push(preflight_blocker(
+            "agent-adapter-not-detected",
+            "blocked",
+            "The selected Agent adapter was not discovered on this machine.",
+        ));
+    }
+    if dry_run.allow_state != "allowed" {
+        blockers.push(preflight_blocker(
+            "agent-adapter-not-allowlisted",
+            "blocked",
+            "The selected Agent adapter is not allowlisted in Baigong.",
+        ));
+    }
+    if dry_run.task_approval_state != "approved" {
+        blockers.push(preflight_blocker(
+            "task-run-not-approved",
+            "blocked",
+            "The target Task Run is not approved by Taiheng.",
+        ));
+    }
+    if dry_run.repository_trust.state != "pass" {
+        blockers.push(preflight_blocker(
+            "repository-trust-not-cleared",
+            "blocked",
+            "Repository trust preview did not pass.",
+        ));
+    }
+    if dry_run.command_safety.state == "blocked" {
+        blockers.push(preflight_blocker(
+            "agent-input-command-safety-blocked",
+            "blocked",
+            "The task input contains denied command or credential markers.",
+        ));
+    }
+    if dry_run.command_safety.state == "review-required" {
+        blockers.push(preflight_blocker(
+            "agent-input-command-safety-review-required",
+            "review-required",
+            "The task input contains markers that need explicit human review.",
+        ));
+    }
+    if !agent_execution_enabled {
+        blockers.push(preflight_blocker(
+            "external-agent-execution-gate-disabled",
+            "blocked",
+            "The public baseline keeps real external Agent execution disabled by default.",
+        ));
+    }
+    let execution_enabled = agent_execution_enabled && blockers.is_empty();
+    let state = if execution_enabled {
+        "ready-for-final-human-execution-approval"
+    } else {
+        "real-agent-execution-blocked-by-default"
+    };
+
+    RealAgentExecutionPreflight {
+        state: state.to_string(),
+        dry_run,
+        execution_enabled,
+        process_started: false,
+        task_content_sent: false,
+        required_approvals: vec![
+            "tool-detected".to_string(),
+            "tool-allowlisted".to_string(),
+            "task-run-approved".to_string(),
+            "repository-trust-pass".to_string(),
+            "command-safety-pass-or-reviewed".to_string(),
+            "explicit-human-execution-approval".to_string(),
+            "external-agent-execution-gate-enabled".to_string(),
+        ],
+        blockers,
+        gates: vec![
+            "dry-run-contract-reused".to_string(),
+            "no-process-spawn".to_string(),
+            "no-task-content-sent".to_string(),
+            "no-network".to_string(),
+            "no-credential-read".to_string(),
+            "denied-by-default-real-agent-gate".to_string(),
+        ],
+    }
+}
+
+pub fn smoke_adapters() -> AgentAdapterSmokeReport {
+    let adapters = arsenal::default_preview()
+        .tools
+        .into_iter()
+        .filter(|tool| tool.category == "agent")
+        .map(|tool| AgentAdapterSmokeItem {
+            command_contract: argument_preview(&tool.id, tool.detected_path.as_deref(), 0),
+            tool_id: tool.id,
+            tool_label: tool.label,
+            discovery_state: tool.discovery_state,
+            allow_state: tool.allow_state,
+            execution_enabled: false,
+            process_started: false,
+            gates: vec![
+                "path-discovery-only".to_string(),
+                "fixed-argument-contract-preview".to_string(),
+                "no-version-probe".to_string(),
+                "no-task-prompt-sent".to_string(),
+                "no-process-spawn".to_string(),
+                "real-agent-execution-requires-explicit-gates".to_string(),
+            ],
+        })
+        .collect::<Vec<_>>();
+    let detected_count = adapters
+        .iter()
+        .filter(|adapter| adapter.discovery_state == "detected")
+        .count();
+    let state = if detected_count == 0 {
+        "no-agent-adapters-detected"
+    } else {
+        "agent-adapter-smoke-ready"
+    };
+
+    AgentAdapterSmokeReport {
+        state: state.to_string(),
+        agent_count: adapters.len(),
+        detected_count,
+        execution_enabled: false,
+        process_started: false,
+        adapters,
+        gates: vec![
+            "read-only-path-discovery".to_string(),
+            "command-contract-preview-only".to_string(),
+            "no-process-spawn".to_string(),
+            "no-network".to_string(),
+            "no-credentials-read".to_string(),
+            "no-task-content-sent".to_string(),
+        ],
+    }
+}
+
+fn preflight_blocker(id: &str, state: &str, detail: &str) -> RealAgentPreflightBlocker {
+    RealAgentPreflightBlocker {
+        id: id.to_string(),
+        state: state.to_string(),
+        detail: detail.to_string(),
+    }
+}
+
 pub fn execute_codex(
     request: AgentDryRunRequest,
     approved: bool,
 ) -> Result<AgentExecutionReceipt, store::StoreError> {
+    let quarantine = execute_codex_quarantined(
+        request,
+        approved,
+        "agent-output-quarantine",
+        "agent-output",
+        None,
+        None,
+    )?;
+    let previous_run = store::task_run_by_id(quarantine.dry_run.run_id.clone())?;
+    let saga = store::begin_saga(
+        "agent-harness-execution".to_string(),
+        previous_run.id.clone(),
+        serde_json::json!({
+            "tool_id": quarantine.dry_run.tool_id,
+            "mode": quarantine.dry_run.mode,
+            "artifact_id": quarantine.artifact.id,
+            "rollback_snapshot_id": quarantine.rollback_snapshot.id,
+        }),
+    )?;
+    let (completed, audit_event, saga) = finalize_agent_execution(
+        || {
+            store::complete_domain_task_run(
+                quarantine.dry_run.run_id.clone(),
+                format!("Codex output quarantined as artifact {}.", quarantine.artifact.id),
+            )
+        },
+        || {
+            store::append_audit_event(store::NewAuditEvent {
+                actor: "taiheng".to_string(),
+                action: "execute-codex-agent".to_string(),
+                target_type: "task-run".to_string(),
+                target_id: previous_run.id.clone(),
+                risk_level: "high".to_string(),
+                decision: "completed-output-quarantined".to_string(),
+                input: serde_json::json!({
+                    "tool_id": quarantine.dry_run.tool_id,
+                    "mode": quarantine.dry_run.mode,
+                    "rollback_snapshot_id": quarantine.rollback_snapshot.id,
+                    "saga_id": saga.id,
+                }),
+                result_summary: serde_json::json!({
+                    "artifact_id": quarantine.artifact.id,
+                    "exit_code": quarantine.exit_code,
+                    "output_truncated": quarantine.output_truncated,
+                    "process_started": true,
+                    "output_admission": "quarantine-review-before-memory",
+                }),
+                error: None,
+            })
+        },
+        || store::transition_saga(saga.id.clone(), "committed".to_string()),
+        || compensate_agent_execution(&saga, &previous_run, &quarantine.artifact),
+    )?;
+
+    Ok(AgentExecutionReceipt {
+        dry_run: quarantine.dry_run,
+        state: quarantine.state,
+        exit_code: quarantine.exit_code,
+        output_truncated: quarantine.output_truncated,
+        rollback_snapshot: quarantine.rollback_snapshot,
+        safety_checks: quarantine.safety_checks,
+        artifact: quarantine.artifact,
+        run: completed,
+        audit_event,
+        saga,
+    })
+}
+
+fn finalize_agent_execution<T, U, V, FRun, FAudit, FCommit, FCompensate>(
+    complete_run: FRun,
+    write_audit: FAudit,
+    commit_saga: FCommit,
+    compensate: FCompensate,
+) -> Result<(T, U, V), store::StoreError>
+where
+    FRun: FnOnce() -> Result<T, store::StoreError>,
+    FAudit: FnOnce() -> Result<U, store::StoreError>,
+    FCommit: FnOnce() -> Result<V, store::StoreError>,
+    FCompensate: FnOnce() -> Result<(), store::StoreError>,
+{
+    let run = match complete_run() {
+        Ok(value) => value,
+        Err(error) => return finish_agent_execution_compensation(error, compensate()),
+    };
+    let audit = match write_audit() {
+        Ok(value) => value,
+        Err(error) => return finish_agent_execution_compensation(error, compensate()),
+    };
+    match commit_saga() {
+        Ok(saga) => Ok((run, audit, saga)),
+        Err(error) => finish_agent_execution_compensation(error, compensate()),
+    }
+}
+
+fn finish_agent_execution_compensation<T>(
+    original_error: store::StoreError,
+    compensation: Result<(), store::StoreError>,
+) -> Result<T, store::StoreError> {
+    match compensation {
+        Ok(()) => Err(original_error),
+        Err(compensation_error) => Err(store::StoreError::InvalidInput(format!(
+            "agent execution failed: {original_error}; compensation failed: {compensation_error}"
+        ))),
+    }
+}
+
+fn compensate_agent_execution(
+    saga: &store::SagaTransaction,
+    previous_run: &store::TaskRunRecord,
+    artifact: &store::TaskArtifactRecord,
+) -> Result<(), store::StoreError> {
+    let _ = store::transition_saga(saga.id.clone(), "compensating".to_string());
+    let artifact_result = store::remove_task_artifacts(vec![artifact.id.clone()]);
+    let run_result = store::restore_task_run(previous_run.clone());
+    if artifact_result.is_ok() && run_result.is_ok() {
+        let _ = store::transition_saga(saga.id.clone(), "compensated".to_string());
+        Ok(())
+    } else {
+        let _ = store::transition_saga(saga.id.clone(), "failed".to_string());
+        Err(store::StoreError::InvalidInput(
+            "agent execution compensation failed".to_string(),
+        ))
+    }
+}
+
+pub fn execute_codex_quarantined(
+    request: AgentDryRunRequest,
+    approved: bool,
+    artifact_type: &str,
+    reference_prefix: &str,
+    title_prefix: Option<&str>,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<AgentQuarantineExecutionReceipt, store::StoreError> {
+    if !config::read_runtime_config().agent_execution_enabled {
+        return Err(store::StoreError::InvalidInput(
+            "agent execution is disabled by [safety].agent_execution_enabled".to_string(),
+        ));
+    }
     let input = validate_input(request.input.clone())?;
     let dry_run = dry_run_contract(request)?;
     if dry_run.tool_id != "agent-codex" {
@@ -156,7 +514,7 @@ pub fn execute_codex(
     let safety_checks = execution_safety_checks(&dry_run, &rollback_snapshot);
     let prompt = execution_prompt(&dry_run, &input);
     let workspace = project_root();
-    let output = run_codex_process(&executable, &workspace, &prompt)?;
+    let output = run_codex_process(&executable, &workspace, &prompt, cancellation)?;
     if output.exit_code != 0 {
         return Err(store::StoreError::InvalidInput(format!(
             "Codex CLI exited with code {}: {}",
@@ -169,9 +527,11 @@ pub fn execute_codex(
         run.id.clone(),
         run.task_direction_id.clone(),
         vec![store::NewTaskArtifact {
-            artifact_type: "agent-output-quarantine".to_string(),
-            reference_id: format!("agent-output-{}", store::now_millis()),
-            title: format!("{} {} output", dry_run.tool_label, dry_run.mode),
+            artifact_type: artifact_type.to_string(),
+            reference_id: format!("{reference_prefix}-{}", store::now_millis()),
+            title: title_prefix
+                .map(|prefix| format!("{prefix}: {} {}", dry_run.tool_label, dry_run.mode))
+                .unwrap_or_else(|| format!("{} {} output", dry_run.tool_label, dry_run.mode)),
             summary: output.stdout.trim().to_string(),
             metadata: serde_json::json!({
                 "tool_id": dry_run.tool_id,
@@ -191,12 +551,8 @@ pub fn execute_codex(
         }],
     )?
     .remove(0);
-    let completed = store::complete_domain_task_run(
-        run.id,
-        format!("Codex output quarantined as artifact {}.", artifact.id),
-    )?;
 
-    Ok(AgentExecutionReceipt {
+    Ok(AgentQuarantineExecutionReceipt {
         dry_run,
         state: "completed-output-quarantined".to_string(),
         exit_code: output.exit_code,
@@ -204,7 +560,6 @@ pub fn execute_codex(
         rollback_snapshot,
         safety_checks,
         artifact,
-        run: completed,
     })
 }
 
@@ -417,6 +772,7 @@ fn run_codex_process(
     executable: &str,
     workspace: &std::path::Path,
     prompt: &str,
+    cancellation: Option<Arc<AtomicBool>>,
 ) -> Result<ProcessOutput, store::StoreError> {
     let mut child = Command::new(executable)
         .args([
@@ -459,20 +815,7 @@ fn run_codex_process(
     })?;
     let stdout_reader = thread::spawn(move || read_bounded(stdout));
     let stderr_reader = thread::spawn(move || read_bounded(stderr));
-    let started = Instant::now();
-    let status = loop {
-        if let Some(status) = child.try_wait()? {
-            break status;
-        }
-        if started.elapsed() >= EXECUTION_TIMEOUT {
-            child.kill()?;
-            let _ = child.wait();
-            return Err(store::StoreError::InvalidInput(
-                "Codex execution exceeded 120 seconds".to_string(),
-            ));
-        }
-        thread::sleep(Duration::from_millis(50));
-    };
+    let status = wait_for_process(&mut child, EXECUTION_TIMEOUT, cancellation)?;
     let (stdout, stdout_truncated) = stdout_reader
         .join()
         .map_err(|_| store::StoreError::InvalidInput("Codex stdout reader failed".to_string()))??;
@@ -485,6 +828,52 @@ fn run_codex_process(
         stderr,
         truncated: stdout_truncated || stderr_truncated,
     })
+}
+
+pub(crate) fn wait_for_process(
+    child: &mut std::process::Child,
+    timeout: Duration,
+    cancellation: Option<Arc<AtomicBool>>,
+) -> Result<std::process::ExitStatus, store::StoreError> {
+    let started = Instant::now();
+    loop {
+        if cancellation.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+            terminate_process_tree(child)?;
+            return Err(store::StoreError::InvalidInput(
+                "Codex execution cancelled by operator".to_string(),
+            ));
+        }
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        if started.elapsed() >= timeout {
+            terminate_process_tree(child)?;
+            return Err(store::StoreError::InvalidInput(format!(
+                "Codex execution exceeded {} milliseconds",
+                timeout.as_millis()
+            )));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+pub(crate) fn terminate_process_tree(child: &mut std::process::Child) -> Result<(), std::io::Error> {
+    #[cfg(windows)]
+    {
+        let status = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if !status.success() {
+            child.kill()?;
+        }
+    }
+    #[cfg(not(windows))]
+    child.kill()?;
+    let _ = child.wait();
+    Ok(())
 }
 
 fn read_bounded<R: Read>(mut reader: R) -> Result<(String, bool), std::io::Error> {
@@ -781,6 +1170,83 @@ fn required(value: String, label: &str) -> Result<String, store::StoreError> {
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_process_tree_termination_removes_descendant_process() {
+        let pid_file = std::env::temp_dir().join(format!(
+            "synapse-agent-child-{}.pid",
+            store::now_millis()
+        ));
+        let escaped_path = pid_file.display().to_string().replace("'", "''");
+        let script = format!(
+            "$child = Start-Process ping.exe -ArgumentList '127.0.0.1','-n','30' -PassThru -WindowStyle Hidden; Set-Content -LiteralPath '{escaped_path}' -Value $child.Id; Wait-Process -Id $child.Id"
+        );
+        let mut parent = Command::new("powershell.exe")
+            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let child_pid = loop {
+            if let Ok(value) = std::fs::read_to_string(&pid_file) {
+                if let Ok(pid) = value.trim().parse::<u32>() {
+                    break pid;
+                }
+            }
+            if Instant::now() >= deadline {
+                let _ = terminate_process_tree(&mut parent);
+                panic!("controlled descendant PID was not recorded");
+            }
+            thread::sleep(Duration::from_millis(50));
+        };
+
+        terminate_process_tree(&mut parent).unwrap();
+        assert!(parent.try_wait().unwrap().is_some());
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let check = Command::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-Command",
+                    &format!(
+                        "if (Get-Process -Id {child_pid} -ErrorAction SilentlyContinue) {{ exit 1 }}"
+                    ),
+                ])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap();
+            if check.success() {
+                break;
+            }
+            assert!(Instant::now() < deadline, "descendant process {child_pid} survived tree termination");
+            thread::sleep(Duration::from_millis(50));
+        }
+        let _ = std::fs::remove_file(pid_file);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn process_timeout_terminates_controlled_process() {
+        let mut child = Command::new("ping.exe")
+            .args(["127.0.0.1", "-n", "30"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let error = wait_for_process(&mut child, Duration::from_millis(100), None).unwrap_err();
+        assert!(error.to_string().contains("exceeded 100 milliseconds"));
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
     #[test]
     fn native_mode_has_no_zhishu_context() {
         assert!(deep_context_references(Vec::new()).is_empty());
@@ -912,6 +1378,52 @@ mod tests {
     }
 
     #[test]
+    fn adapter_smoke_report_never_starts_process_or_enables_execution() {
+        let report = smoke_adapters();
+
+        assert_eq!(report.agent_count, 4);
+        assert!(!report.execution_enabled);
+        assert!(!report.process_started);
+        assert!(report.gates.contains(&"no-process-spawn".to_string()));
+        assert!(report
+            .adapters
+            .iter()
+            .all(|adapter| !adapter.execution_enabled && !adapter.process_started));
+        assert!(report.adapters.iter().any(|adapter| {
+            adapter.tool_id == "agent-codex"
+                && adapter
+                    .gates
+                    .contains(&"fixed-argument-contract-preview".to_string())
+        }));
+    }
+
+    #[test]
+    fn real_agent_preflight_is_denied_by_default_without_process_or_task_send() {
+        let report = real_execution_preflight_from_dry_run(receipt(), false);
+
+        assert_eq!(report.state, "real-agent-execution-blocked-by-default");
+        assert!(!report.execution_enabled);
+        assert!(!report.process_started);
+        assert!(!report.task_content_sent);
+        assert!(report
+            .blockers
+            .iter()
+            .any(|blocker| blocker.id == "external-agent-execution-gate-disabled"));
+        assert!(report.gates.contains(&"no-process-spawn".to_string()));
+        assert!(report.gates.contains(&"no-task-content-sent".to_string()));
+    }
+
+    #[test]
+    fn real_agent_preflight_can_only_enable_after_runtime_gate_and_clean_blockers() {
+        let report = real_execution_preflight_from_dry_run(receipt(), true);
+
+        assert_eq!(report.state, "ready-for-final-human-execution-approval");
+        assert!(report.execution_enabled);
+        assert!(!report.process_started);
+        assert!(!report.task_content_sent);
+    }
+
+    #[test]
     fn execution_safety_checks_record_snapshot_and_review_requirements() {
         let receipt = receipt();
         let checks = execution_safety_checks(&receipt, &snapshot());
@@ -925,6 +1437,35 @@ mod tests {
         assert!(checks.iter().any(|check| {
             check.id == "post-execution-test-check" && check.state == "review-required"
         }));
+    }
+
+    #[test]
+    fn agent_execution_final_commit_failure_compensates_after_run_and_audit() {
+        let events = std::cell::RefCell::new(Vec::new());
+        let result = finalize_agent_execution::<(), (), (), _, _, _, _>(
+            || {
+                events.borrow_mut().push("complete-run");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("audit");
+                Ok(())
+            },
+            || {
+                events.borrow_mut().push("commit-saga");
+                Err(store::StoreError::InvalidInput("commit failed".to_string()))
+            },
+            || {
+                events.borrow_mut().push("compensate");
+                Ok(())
+            },
+        );
+
+        assert!(result.is_err());
+        assert_eq!(
+            events.into_inner(),
+            vec!["complete-run", "audit", "commit-saga", "compensate"]
+        );
     }
 
     #[test]

@@ -305,6 +305,17 @@ pub fn complete_domain_task_run(
     Ok(completed)
 }
 
+pub fn restore_task_run(record: TaskRunRecord) -> Result<TaskRunRecord, StoreError> {
+    let path = paths::task_run_path();
+    let mut records = read_task_run_records(&path)?;
+    let Some(index) = records.iter().position(|existing| existing.id == record.id) else {
+        return Err(StoreError::NotFound(record.id));
+    };
+    records[index] = record.clone();
+    write_json_records(&path, &records)?;
+    Ok(record)
+}
+
 pub fn review_task_candidate(
     candidate_id: String,
     decision: String,
@@ -3177,6 +3188,182 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("already completed"));
+
+        let _ = fs::remove_file(run_path);
+        let _ = fs::remove_file(candidate_path);
+        let _ = fs::remove_file(artifact_path);
+        let _ = fs::remove_file(direction_path);
+        let _ = fs::remove_file(memory_path);
+    }
+
+    #[test]
+    fn task_loop_acceptance_covers_direction_run_execution_artifact_and_memory_admission() {
+        let run_path = temp_history_path("task-loop-acceptance-run");
+        let candidate_path = temp_history_path("task-loop-acceptance-candidates");
+        let artifact_path = temp_history_path("task-loop-acceptance-artifacts");
+        let direction_path = temp_history_path("task-loop-acceptance-directions");
+        let memory_path = temp_history_path("task-loop-acceptance-memory");
+        let direction = append_task_direction_at(
+            &direction_path,
+            "Workflow products".to_string(),
+            "Find reusable workflow product opportunities.".to_string(),
+            5,
+            vec!["workflow".to_string(), "template".to_string()],
+            "manual".to_string(),
+            false,
+            "opportunity".to_string(),
+        )
+        .unwrap();
+        append_memory_item_at(
+            &memory_path,
+            "L0 Session",
+            "raw",
+            "inspiration",
+            "manual-capture",
+            "workflow template for recurring expert reports".to_string(),
+            vec!["workflow".to_string()],
+            0.6,
+            "unverified",
+        )
+        .unwrap();
+
+        let requested =
+            request_task_run_at(&run_path, &direction_path, direction.id.clone()).unwrap();
+        assert_eq!(requested.lifecycle_state, "awaiting-approval");
+        assert_eq!(requested.execution_state, "not-started");
+
+        let approved = review_task_run_at(&run_path, requested.id.clone(), true).unwrap();
+        assert_eq!(approved.lifecycle_state, "approved");
+        assert_eq!(approved.execution_state, "approved-not-started");
+
+        let receipt = execute_task_run_at(
+            &run_path,
+            &candidate_path,
+            &artifact_path,
+            &direction_path,
+            &memory_path,
+            requested.id,
+        )
+        .unwrap();
+        assert_eq!(receipt.run.lifecycle_state, "succeeded");
+        assert_eq!(receipt.run.execution_state, "completed");
+        assert_eq!(receipt.generated_candidates.len(), 1);
+        assert_eq!(receipt.artifacts.len(), 1);
+        assert_eq!(
+            receipt.artifacts[0].reference_id,
+            receipt.generated_candidates[0].id
+        );
+        assert_eq!(
+            receipt.run.generated_candidate_ids,
+            vec![receipt.generated_candidates[0].id.clone()]
+        );
+        assert!(receipt.generated_candidates[0]
+            .evidence
+            .iter()
+            .any(|item| item.label == "Resolved output template" && item.value == "opportunity"));
+
+        let review = review_task_candidate_at(
+            &candidate_path,
+            &run_path,
+            &memory_path,
+            receipt.generated_candidates[0].id.clone(),
+            "accepted".to_string(),
+        )
+        .unwrap();
+        let promoted = review.promoted_memory_item.unwrap();
+        assert_eq!(review.candidate.status, "accepted");
+        assert_eq!(promoted.scope, "L1 Working");
+        assert_eq!(promoted.item_type, "task-candidate");
+        assert_eq!(promoted.admission_state, "accepted");
+        assert_eq!(promoted.admission_rule, "task-candidate-review");
+        assert!(promoted.tags.contains(&"template:opportunity".to_string()));
+
+        let _ = fs::remove_file(run_path);
+        let _ = fs::remove_file(candidate_path);
+        let _ = fs::remove_file(artifact_path);
+        let _ = fs::remove_file(direction_path);
+        let _ = fs::remove_file(memory_path);
+    }
+
+    #[test]
+    fn scheduled_task_loop_acceptance_covers_tick_approval_execution_and_memory_admission() {
+        let run_path = temp_history_path("scheduled-task-loop-run");
+        let candidate_path = temp_history_path("scheduled-task-loop-candidates");
+        let artifact_path = temp_history_path("scheduled-task-loop-artifacts");
+        let direction_path = temp_history_path("scheduled-task-loop-directions");
+        let memory_path = temp_history_path("scheduled-task-loop-memory");
+        let mut direction = append_task_direction_at(
+            &direction_path,
+            "Scheduled workflow products".to_string(),
+            "Find scheduled workflow opportunities.".to_string(),
+            5,
+            vec!["workflow".to_string(), "template".to_string()],
+            "daily".to_string(),
+            false,
+            "opportunity".to_string(),
+        )
+        .unwrap();
+        direction.created_at_ms = 1;
+        direction.updated_at_ms = 1;
+        write_json_records(&direction_path, &[direction.clone()]).unwrap();
+        append_memory_item_at(
+            &memory_path,
+            "L0 Session",
+            "raw",
+            "inspiration",
+            "manual-capture",
+            "daily workflow template for expert report packages".to_string(),
+            vec!["workflow".to_string(), "template".to_string()],
+            0.6,
+            "unverified",
+        )
+        .unwrap();
+
+        let tick = task_scheduler_tick_at(&run_path, &direction_path).unwrap();
+        assert_eq!(tick.created_run_count, 1);
+        assert_eq!(tick.skipped_run_count, 0);
+        assert_eq!(tick.created_runs[0].trigger_kind, "schedule-tick");
+        assert_eq!(tick.created_runs[0].schedule_frequency, "daily");
+        assert_eq!(tick.created_runs[0].approval_state, "waiting-approval");
+        assert_eq!(tick.created_runs[0].task_direction_id, direction.id);
+
+        let approved =
+            review_task_run_at(&run_path, tick.created_runs[0].id.clone(), true).unwrap();
+        assert_eq!(approved.lifecycle_state, "approved");
+        assert_eq!(approved.execution_state, "approved-not-started");
+
+        let receipt = execute_task_run_at(
+            &run_path,
+            &candidate_path,
+            &artifact_path,
+            &direction_path,
+            &memory_path,
+            tick.created_runs[0].id.clone(),
+        )
+        .unwrap();
+        assert_eq!(receipt.run.trigger_kind, "schedule-tick");
+        assert_eq!(receipt.run.lifecycle_state, "succeeded");
+        assert_eq!(receipt.run.execution_state, "completed");
+        assert_eq!(receipt.generated_candidates.len(), 1);
+        assert_eq!(receipt.artifacts.len(), 1);
+
+        let review = review_task_candidate_at(
+            &candidate_path,
+            &run_path,
+            &memory_path,
+            receipt.generated_candidates[0].id.clone(),
+            "accepted".to_string(),
+        )
+        .unwrap();
+        let promoted = review.promoted_memory_item.unwrap();
+        assert_eq!(promoted.scope, "L1 Working");
+        assert_eq!(promoted.item_type, "task-candidate");
+        assert_eq!(promoted.admission_state, "accepted");
+        assert!(promoted.tags.contains(&"template:opportunity".to_string()));
+
+        let second_tick = task_scheduler_tick_at(&run_path, &direction_path).unwrap();
+        assert_eq!(second_tick.created_run_count, 0);
+        assert_eq!(second_tick.skipped_run_count, 1);
 
         let _ = fs::remove_file(run_path);
         let _ = fs::remove_file(candidate_path);

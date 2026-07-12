@@ -1,4 +1,5 @@
 import type { PlanPreview, SystemStatus } from "../types";
+import { useI18n } from "../i18n";
 
 type PlanStepsPanelProps = {
   plan: PlanPreview | null;
@@ -17,22 +18,23 @@ function contextRefClassName(value: string) {
 }
 
 export function PlanStepsPanel({ plan, status }: PlanStepsPanelProps) {
+  const { text } = useI18n();
   const displayedItems = plan?.steps ?? status?.memory_scopes ?? ["L0 Session", "L1 Working", "L2 Knowledge"];
 
   return (
     <div className="panel">
       <div className="panel-heading">
-        <p className="eyebrow">Plan</p>
-        <h3>Materialized steps</h3>
+        <p className="eyebrow">{text("Plan")}</p>
+        <h3>{text("Materialized steps")}</h3>
       </div>
       <div className="scope-list">
         {displayedItems.map((item) => (
-          <span key={item}>{item}</span>
+          <span key={item}>{text(item)}</span>
         ))}
       </div>
       {plan && (
         <div className="context-refs">
-          <p className="eyebrow">Context references</p>
+          <p className="eyebrow">{text("Context references")}</p>
           {plan.context_refs.map((item) => (
             <span className={contextRefClassName(item)} key={item}>
               {item}

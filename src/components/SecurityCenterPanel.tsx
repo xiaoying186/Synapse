@@ -1,4 +1,5 @@
 import type { AuditEventRecord, CapabilityStatus, SnapshotRecord } from "../types";
+import { useI18n } from "../i18n";
 
 type SecurityCenterPanelProps = {
   auditEvents: AuditEventRecord[];
@@ -27,6 +28,7 @@ export function SecurityCenterPanel({
   rollingBackSnapshotId,
   snapshots,
 }: SecurityCenterPanelProps) {
+  const { text } = useI18n();
   const guardedCapabilities = capabilities.filter((capability) =>
     guardedStates.has(capability.state),
   );
@@ -43,38 +45,38 @@ export function SecurityCenterPanel({
     <section className="panel security-center-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Security center</p>
-          <h3>Evidence and gates</h3>
+          <p className="eyebrow">{text("Security center")}</p>
+          <h3>{text("Evidence and gates")}</h3>
         </div>
         <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          {isRefreshing ? "Refreshing" : "Refresh"}
+          {isRefreshing ? text("Refreshing") : text("Refresh")}
         </button>
       </div>
 
       <div className="security-center-summary">
         <article>
-          <span>Guarded capabilities</span>
+          <span>{text("Guarded capabilities")}</span>
           <strong>{guardedCapabilities.length}</strong>
         </article>
         <article>
-          <span>Blocked boundaries</span>
+          <span>{text("Blocked boundaries")}</span>
           <strong>{blockedCapabilities.length}</strong>
         </article>
         <article>
-          <span>Recent audit events</span>
+          <span>{text("Recent audit events")}</span>
           <strong>{auditEvents.length}</strong>
         </article>
         <article>
-          <span>Restore points</span>
+          <span>{text("Restore points")}</span>
           <strong>{snapshots.length}</strong>
         </article>
       </div>
 
       <div className="security-center-grid">
         <div className="security-center-list">
-          <p className="eyebrow">Recent evidence</p>
+          <p className="eyebrow">{text("Recent evidence")}</p>
           {auditEvents.length === 0 ? (
-            <span className="empty-state">No durable audit events yet.</span>
+            <span className="empty-state">{text("No durable audit events yet.")}</span>
           ) : (
             auditEvents.slice(0, 6).map((event) => (
               <article className="security-event" key={event.id}>
@@ -84,9 +86,9 @@ export function SecurityCenterPanel({
                     {event.target_type} / {event.target_id}
                   </span>
                 </div>
-                <b>{event.decision}</b>
+                <b>{text(event.decision)}</b>
                 <small>
-                  {event.risk_level} · input {event.input_hash}
+                  {text(event.risk_level)} · {text("input")} {event.input_hash}
                 </small>
               </article>
             ))
@@ -94,29 +96,29 @@ export function SecurityCenterPanel({
         </div>
 
         <div className="security-center-list">
-          <p className="eyebrow">Guarded gates</p>
+          <p className="eyebrow">{text("Guarded gates")}</p>
           {guardedCapabilities.slice(0, 6).map((capability) => (
             <article className="security-capability" key={capability.name}>
               <div>
-                <strong>{capability.name}</strong>
-                <span>{capability.detail}</span>
+                <strong>{text(capability.name)}</strong>
+                <span>{text(capability.detail)}</span>
               </div>
-              <b>{capability.state}</b>
+              <b>{text(capability.state)}</b>
             </article>
           ))}
         </div>
 
         <div className="security-center-list">
-          <p className="eyebrow">Recovery surface</p>
+          <p className="eyebrow">{text("Recovery surface")}</p>
           {snapshots.length === 0 ? (
-            <span className="empty-state">No restore points yet.</span>
+            <span className="empty-state">{text("No restore points yet.")}</span>
           ) : (
             snapshots.slice(0, 4).map((snapshot) => (
               <article className="security-snapshot" key={snapshot.id}>
                 <div>
                   <strong>{snapshot.object_id}</strong>
                   <span>
-                    {snapshot.object_type} / {snapshot.reason}
+                    {text(snapshot.object_type)} / {text(snapshot.reason)}
                   </span>
                 </div>
                 <b>v{snapshot.version}</b>
@@ -126,7 +128,7 @@ export function SecurityCenterPanel({
                     onClick={() => onRollbackSnapshot(snapshot.id)}
                     disabled={rollingBackSnapshotId === snapshot.id}
                   >
-                    {rollingBackSnapshotId === snapshot.id ? "Restoring" : "Restore"}
+                    {rollingBackSnapshotId === snapshot.id ? text("Restoring") : text("Restore")}
                   </button>
                 )}
               </article>
@@ -135,17 +137,17 @@ export function SecurityCenterPanel({
         </div>
 
         <div className="security-center-list">
-          <p className="eyebrow">High-risk trail</p>
+          <p className="eyebrow">{text("High-risk trail")}</p>
           {recentHighRiskEvents.length === 0 ? (
-            <span className="empty-state">No high-risk audit trail in the current window.</span>
+            <span className="empty-state">{text("No high-risk audit trail in the current window.")}</span>
           ) : (
             recentHighRiskEvents.slice(0, 4).map((event) => (
               <article className="security-event" key={`risk-${event.id}`}>
                 <div>
-                  <strong>{event.risk_level}</strong>
+                  <strong>{text(event.risk_level)}</strong>
                   <span>{event.action}</span>
                 </div>
-                <b>{event.decision}</b>
+                <b>{text(event.decision)}</b>
               </article>
             ))
           )}

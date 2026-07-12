@@ -1,4 +1,5 @@
 import { displayFrequency } from "../format";
+import { useI18n } from "../i18n";
 import type { TaskDirection, TaskSchedulePreview } from "../types";
 
 type DirectionListPanelProps = {
@@ -22,6 +23,7 @@ export function DirectionListPanel({
   schedulePreviews,
   updatingDirectionId,
 }: DirectionListPanelProps) {
+  const { text } = useI18n();
   const scheduleByDirection = new Map(
     schedulePreviews.map((preview) => [preview.direction_id, preview]),
   );
@@ -30,61 +32,62 @@ export function DirectionListPanel({
     <section className="panel task-center-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Priority map</p>
-          <h3>Active directions</h3>
+          <p className="eyebrow">{text("Priority map")}</p>
+          <h3>{text("Active directions")}</h3>
         </div>
         <button className="text-action" type="button" onClick={onMine} disabled={isMining}>
-          {isMining ? "Mining" : "Mine"}
+          {isMining ? text("Mining") : text("Mine")}
         </button>
       </div>
       <div className="direction-list">
-        {directions.length === 0 && <span className="empty-state">No task directions yet.</span>}
+        {directions.length === 0 && <span className="empty-state">{text("No task directions yet.")}</span>}
         {directions.map((direction) => (
-          <article className="direction-item" key={direction.id}>
+          <article className="direction-item" data-testid="direction-item" key={direction.id}>
             {(() => {
               const schedule = scheduleByDirection.get(direction.id);
 
               return schedule ? (
                 <div className="direction-schedule">
-                  <span>{schedule.readiness}</span>
+                  <span>{text(schedule.readiness)}</span>
                   <strong>{schedule.next_run_label}</strong>
-                  <small>{schedule.detail}</small>
+                  <small>{text(schedule.detail)}</small>
                   <small>
                     {schedule.push_enabled
-                      ? `push: ${(schedule.push_channels ?? []).join(", ") || "configured"}`
-                      : "no push"}
+                      ? `${text("push")}: ${(schedule.push_channels ?? []).join(", ") || text("configured")}`
+                      : text("no push")}
                   </small>
                   {schedule.next_run_at_ms && (
-                    <small>next: {new Date(schedule.next_run_at_ms).toLocaleString()}</small>
+                    <small>{text("next")}: {new Date(schedule.next_run_at_ms).toLocaleString()}</small>
                   )}
                 </div>
               ) : null;
             })()}
             <div>
-              <span>Priority {direction.priority}</span>
+              <span>{text("Priority")} {direction.priority}</span>
               <strong>{direction.title}</strong>
               {direction.description && <p>{direction.description}</p>}
             </div>
             <div className="direction-meta">
               <span className={direction.active ? "direction-state-active" : "direction-state-inactive"}>
-                {direction.active ? "active" : "inactive"}
+                {text(direction.active ? "active" : "inactive")}
               </span>
-              <span>{displayFrequency(direction.schedule_frequency)}</span>
-              <span>{direction.output_template ?? "auto"}</span>
-              <span>{direction.online_enabled ? "online" : "local"}</span>
+              <span>{text(displayFrequency(direction.schedule_frequency))}</span>
+              <span>{text(direction.output_template ?? "auto")}</span>
+              <span>{text(direction.online_enabled ? "online" : "local")}</span>
               <span>
                 {direction.push_enabled
-                  ? `push: ${(direction.push_channels ?? []).join(", ") || "configured"}`
-                  : "no push"}
+                  ? `${text("push")}: ${(direction.push_channels ?? []).join(", ") || text("configured")}`
+                  : text("no push")}
               </span>
             </div>
             <button
               className="text-action"
+              data-testid="request-task-run-button"
               type="button"
               onClick={() => onRequestRun(direction.id)}
               disabled={requestingDirectionId === direction.id || !direction.active}
             >
-              {requestingDirectionId === direction.id ? "Recording" : "Request run"}
+              {requestingDirectionId === direction.id ? text("Recording") : text("Request run")}
             </button>
             <button
               className="text-action"
@@ -93,10 +96,10 @@ export function DirectionListPanel({
               disabled={updatingDirectionId === direction.id}
             >
               {updatingDirectionId === direction.id
-                ? "Updating"
+                ? text("Updating")
                 : direction.active
-                  ? "Disable"
-                  : "Enable"}
+                  ? text("Disable")
+                  : text("Enable")}
             </button>
             {direction.keywords.length > 0 && (
               <div className="memory-tags">

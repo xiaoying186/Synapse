@@ -57,6 +57,12 @@ pub fn list_source_observations(
     )
 }
 
+pub fn remove_source_observations(
+    observation_ids: Vec<String>,
+) -> Result<(), StoreError> {
+    remove_source_observations_at(&paths::source_observation_path(), observation_ids)
+}
+
 fn append_source_observations_at(
     path: &Path,
     observations: Vec<NewSourceObservationRecord>,
@@ -104,6 +110,26 @@ fn append_source_observations_at(
     records.truncate(MAX_SOURCE_OBSERVATIONS);
     write_json_records(path, &records)?;
     Ok(created)
+}
+
+fn remove_source_observations_at(
+    path: &Path,
+    observation_ids: Vec<String>,
+) -> Result<(), StoreError> {
+    let observation_ids = observation_ids
+        .into_iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<std::collections::HashSet<_>>();
+    if observation_ids.is_empty() {
+        return Ok(());
+    }
+    let records = read_json_records::<SourceObservationRecord>(path)?;
+    let retained = records
+        .into_iter()
+        .filter(|record| !observation_ids.contains(&record.id))
+        .collect::<Vec<_>>();
+    write_json_records(path, &retained)
 }
 
 fn list_source_observations_at(
@@ -157,6 +183,23 @@ mod tests {
         assert_eq!(records[0].field_coverage, 1.0);
         assert_eq!(records[0].source_id, "fixture-primary");
 
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn removes_only_requested_observations_for_compensation() {
+        let path = temp_observation_path("remove");
+        let created = append_source_observations_at(
+            &path,
+            vec![observation("fixture-primary", 0.8), observation("fixture-secondary", 0.8)],
+        )
+        .unwrap();
+
+        remove_source_observations_at(&path, vec![created[0].id.clone()]).unwrap();
+        let remaining = list_source_observations_at(&path, None, 10).unwrap();
+
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, created[1].id);
         let _ = fs::remove_file(path);
     }
 

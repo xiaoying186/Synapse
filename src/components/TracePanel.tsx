@@ -1,4 +1,5 @@
 import type { PlanPreview } from "../types";
+import { useI18n } from "../i18n";
 
 type TracePanelProps = {
   activity: string;
@@ -6,46 +7,48 @@ type TracePanelProps = {
 };
 
 export function TracePanel({ activity, plan }: TracePanelProps) {
+  const { text } = useI18n();
+
   return (
     <div className="panel">
       <div className="panel-heading">
-        <p className="eyebrow">Trace</p>
-        <h3>Current activity</h3>
+        <p className="eyebrow">{text("Trace")}</p>
+        <h3>{text("Current activity")}</h3>
       </div>
-      <p className="activity">{activity}</p>
+      <p className="activity">{text(activity)}</p>
       {plan && (
         <div className="plan-summary">
           <div>
-            <span>Intent</span>
+            <span>{text("Intent")}</span>
             <strong>{plan.intent}</strong>
           </div>
           <div>
-            <span>Risk</span>
-            <strong>{plan.risk}</strong>
+            <span>{text("Risk")}</span>
+            <strong>{text(plan.risk)}</strong>
           </div>
           <div>
-            <span>Sandbox</span>
-            <strong>{plan.constraints.sandbox}</strong>
+            <span>{text("Sandbox")}</span>
+            <strong>{text(plan.constraints.sandbox)}</strong>
           </div>
           <div>
-            <span>Route</span>
-            <strong>{plan.route}</strong>
+            <span>{text("Route")}</span>
+            <strong>{text(plan.route)}</strong>
           </div>
           <div>
-            <span>Audit</span>
-            <strong>{plan.audit_required ? "Required" : "Optional"}</strong>
+            <span>{text("Audit")}</span>
+            <strong>{text(plan.audit_required ? "Required" : "Optional")}</strong>
           </div>
           <div>
-            <span>Mode lock</span>
-            <strong>{plan.constraints.mode_lock_auto ? "Auto" : "Manual"}</strong>
+            <span>{text("Mode lock")}</span>
+            <strong>{text(plan.constraints.mode_lock_auto ? "Auto" : "Manual")}</strong>
           </div>
           <div>
-            <span>Driver</span>
-            <strong>{plan.driver_receipt.mode}</strong>
+            <span>{text("Driver")}</span>
+            <strong>{text(plan.driver_receipt.mode)}</strong>
           </div>
           <div>
-            <span>Readiness</span>
-            <strong>{plan.driver_receipt.status}</strong>
+            <span>{text("Readiness")}</span>
+            <strong>{text(plan.driver_receipt.status)}</strong>
           </div>
         </div>
       )}

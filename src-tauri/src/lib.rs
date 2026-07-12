@@ -35,6 +35,8 @@ pub(crate) struct SystemStatus {
     max_steps: usize,
     step_timeout_seconds: u64,
     mode_lock_auto: bool,
+    runtime_config_path: String,
+    storage_data_root: String,
     config_warnings: Vec<String>,
     capabilities: Vec<CapabilityStatus>,
     scheduler_status: scheduler::SchedulerStatus,
@@ -112,6 +114,41 @@ fn preview_source_registry() -> domains::source_registry::SourceRegistryPreview 
 }
 
 #[tauri::command]
+fn preflight_source_enablement(
+    source_id: String,
+) -> domains::source_registry::SourceEnablementPreflight {
+    domains::source_registry::preflight_enable_source(source_id)
+}
+
+#[tauri::command]
+fn review_source_enablement(
+    source_id: String,
+    enabled: bool,
+) -> Result<domains::source_registry::SourceEnablementReviewReceipt, String> {
+    domains::source_registry::review_enable_source(source_id, enabled)
+        .map_err(|error| format!("Source enablement review failed: {error}"))
+}
+
+#[tauri::command]
+fn preflight_source_health_check(
+    request: domains::source_registry::SourceHealthCheckRequest,
+) -> domains::source_registry::SourceHealthCheckPreflight {
+    domains::source_registry::preflight_health_check(request)
+}
+
+#[tauri::command]
+async fn execute_source_health_check(
+    request: domains::source_registry::SourceHealthCheckRequest,
+) -> Result<domains::source_registry::SourceHealthCheckReceipt, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        domains::source_registry::execute_health_check(request)
+            .map_err(|error| format!("Source health check failed: {error}"))
+    })
+    .await
+    .map_err(|error| format!("Source health check worker failed: {error}"))?
+}
+
+#[tauri::command]
 fn record_saga_recovery_review(
     request: domains::saga_recovery::SagaRecoveryReviewRequest,
 ) -> Result<domains::saga_recovery::SagaRecoveryReviewReceipt, String> {
@@ -145,6 +182,103 @@ fn import_source_observations(
 #[tauri::command]
 fn fetch_configured_http_source() -> Result<http_source::HttpSourceReceipt, String> {
     services::aggregation::fetch_http_source()
+}
+
+#[tauri::command]
+fn preview_provider_adapter_loopback_receipt() -> http_source::ProviderAdapterExecutionReceipt {
+    http_source::loopback_provider_fixture_receipt()
+}
+
+#[tauri::command]
+fn preflight_provider_receipt_admission(
+    receipt: http_source::ProviderAdapterExecutionReceipt,
+) -> http_source::ProviderReceiptAdmissionPreflight {
+    http_source::preflight_provider_receipt_admission(receipt)
+}
+
+#[tauri::command]
+fn preview_provider_receipt_admission_queue(
+    receipt: http_source::ProviderAdapterExecutionReceipt,
+) -> http_source::ProviderReceiptAdmissionQueuePreview {
+    http_source::preview_provider_receipt_admission_queue(receipt)
+}
+
+#[tauri::command]
+fn stage_provider_receipt_review_candidate(
+    receipt: http_source::ProviderAdapterExecutionReceipt,
+) -> Result<store::ProviderReceiptReviewQueueReceipt, String> {
+    store::stage_provider_receipt_review_candidate(receipt)
+        .map_err(|error| format!("Provider receipt review candidate could not be staged: {error}"))
+}
+
+#[tauri::command]
+fn get_provider_receipt_review_candidates(
+    limit: Option<usize>,
+) -> Result<Vec<store::ProviderReceiptReviewCandidate>, String> {
+    store::provider_receipt_review_candidates(limit.unwrap_or(20))
+        .map_err(|error| format!("Provider receipt review candidates could not be loaded: {error}"))
+}
+
+#[tauri::command]
+fn review_provider_receipt_review_candidate(
+    candidate_id: String,
+    decision: String,
+) -> Result<store::ProviderReceiptReviewDecisionReceipt, String> {
+    store::review_provider_receipt_review_candidate(candidate_id, decision)
+        .map_err(|error| format!("Provider receipt review decision could not be recorded: {error}"))
+}
+
+#[tauri::command]
+fn preflight_provider_receipt_task_artifact(
+    candidate_id: String,
+) -> Result<store::ProviderReceiptTaskArtifactPreflight, String> {
+    store::preflight_provider_receipt_task_artifact(candidate_id).map_err(|error| {
+        format!("Provider receipt task artifact preflight could not be generated: {error}")
+    })
+}
+
+#[tauri::command]
+fn create_provider_receipt_task_artifact(
+    candidate_id: String,
+) -> Result<store::ProviderReceiptTaskArtifactReceipt, String> {
+    store::create_provider_receipt_task_artifact(candidate_id)
+        .map_err(|error| format!("Provider receipt task artifact could not be created: {error}"))
+}
+
+#[tauri::command]
+fn preflight_provider_artifact_zhishu_admission(
+    artifact_id: String,
+) -> Result<store::ProviderArtifactZhishuAdmissionPreflight, String> {
+    store::preflight_provider_artifact_zhishu_admission(artifact_id).map_err(|error| {
+        format!("Provider artifact Zhishu admission preflight could not be generated: {error}")
+    })
+}
+
+#[tauri::command]
+fn review_provider_artifact_zhishu_admission(
+    artifact_id: String,
+    decision: String,
+) -> Result<store::ProviderArtifactAdmissionReviewReceipt, String> {
+    store::review_provider_artifact_zhishu_admission(artifact_id, decision)
+        .map_err(|error| format!("Provider artifact Zhishu admission review failed: {error}"))
+}
+
+#[tauri::command]
+fn create_provider_artifact_zhishu_candidate(
+    artifact_id: String,
+) -> Result<store::ProviderArtifactZhishuCandidateReceipt, String> {
+    store::create_provider_artifact_zhishu_candidate(artifact_id).map_err(|error| {
+        format!("Provider artifact Zhishu candidate could not be created: {error}")
+    })
+}
+
+#[tauri::command]
+fn review_provider_artifact_zhishu_candidate(
+    memory_id: String,
+    decision: String,
+) -> Result<store::ProviderArtifactZhishuFinalReviewReceipt, String> {
+    store::review_provider_artifact_zhishu_candidate(memory_id, decision)
+        .map_err(|error| format!("Provider artifact Zhishu candidate review failed: {error}"))
 }
 
 #[tauri::command]
@@ -217,6 +351,25 @@ fn promote_synthesis_candidate(
 #[tauri::command]
 fn get_system_status() -> SystemStatus {
     services::system::status()
+}
+
+#[tauri::command]
+fn preview_runtime_settings() -> config::RuntimeSettingsPreview {
+    config::preview_runtime_settings()
+}
+
+#[tauri::command]
+fn preflight_runtime_settings_update(
+    request: config::RuntimeSettingsUpdateRequest,
+) -> Result<config::RuntimeSettingsPreview, String> {
+    config::preflight_runtime_settings_update(request)
+}
+
+#[tauri::command]
+fn update_runtime_settings(
+    request: config::RuntimeSettingsUpdateRequest,
+) -> Result<config::RuntimeSettingsUpdateReceipt, String> {
+    config::update_runtime_settings(request)
 }
 
 #[tauri::command]
@@ -376,31 +529,65 @@ fn preview_daily_briefing(
 }
 
 #[tauri::command]
+fn preflight_daily_briefing_live_sources(
+    template: domains::daily_briefing::DailyBriefingTemplate,
+) -> Result<domains::daily_briefing::DailyBriefingLiveSourceStagingPreflight, String> {
+    domains::daily_briefing::preflight_live_source_staging(template)
+        .map_err(|error| format!("Daily briefing live source preflight failed: {error}"))
+}
+
+#[tauri::command]
+async fn fetch_daily_briefing_live_source(
+    run_id: String,
+    template: domains::daily_briefing::DailyBriefingTemplate,
+    approved: bool,
+) -> Result<domains::daily_briefing::DailyBriefingLiveSourceReceipt, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        domains::daily_briefing::fetch_live_source(run_id, template, approved)
+            .map_err(|error| format!("Daily briefing live source fetch failed: {error}"))
+    })
+    .await
+    .map_err(|error| format!("Daily briefing live source worker failed: {error}"))?
+}
+
+#[tauri::command]
 fn archive_daily_briefing(
     run_id: String,
     template: domains::daily_briefing::DailyBriefingTemplate,
 ) -> Result<domains::daily_briefing::DailyBriefingArchiveReceipt, String> {
-    let receipt = domains::daily_briefing::archive(run_id.clone(), template)
-        .map_err(|error| format!("Daily briefing archival failed: {error}"))?;
-    services::audit_event::record_change(
-        "archive-daily-briefing",
-        "task-run",
-        &run_id,
-        "medium",
-        &receipt.run.lifecycle_state,
-        serde_json::json!({ "artifact_type": "daily-briefing" }),
-        serde_json::json!({
-            "artifact_id": receipt.artifact.id,
-            "confidence_score": receipt.preview.aggregation.confidence.score,
-            "lifecycle_state": receipt.run.lifecycle_state,
-        }),
-    )?;
-    Ok(receipt)
+    domains::daily_briefing::archive(run_id, template)
+        .map_err(|error| format!("Daily briefing archival failed: {error}"))
+}
+
+#[tauri::command]
+fn review_daily_briefing_scheduled_archive(
+) -> Result<domains::daily_briefing::DailyBriefingScheduledArchiveReview, String> {
+    domains::daily_briefing::review_scheduled_archive()
+        .map_err(|error| format!("Scheduled Daily Briefing archive review failed: {error}"))
+}
+
+#[tauri::command]
+fn review_daily_briefing_delivery(
+    artifact_id: String,
+) -> Result<domains::daily_briefing::DailyBriefingDeliveryReview, String> {
+    domains::daily_briefing::review_delivery(artifact_id)
+        .map_err(|error| format!("Daily Briefing delivery review failed: {error}"))
 }
 
 #[tauri::command]
 fn preview_computer_diagnostics() -> domains::computer_diagnostics::ComputerDiagnosticReport {
     domains::computer_diagnostics::preview()
+}
+
+#[tauri::command]
+fn preview_computer_cleanup() -> domains::computer_diagnostics::CleanupDryRunPreview {
+    domains::computer_diagnostics::cleanup_dry_run()
+}
+
+#[tauri::command]
+fn preflight_computer_cleanup_mutation() -> domains::computer_diagnostics::CleanupMutationPreflight
+{
+    domains::computer_diagnostics::cleanup_mutation_preflight()
 }
 
 #[tauri::command]
@@ -414,8 +601,68 @@ fn preview_codebase_memory_adapter() -> domains::codebase_memory::CodebaseMemory
 }
 
 #[tauri::command]
+fn preflight_codebase_memory_admission(
+    source_id: String,
+) -> domains::codebase_memory::CodebaseMemoryAdmissionPreflight {
+    domains::codebase_memory::preflight_admission(source_id)
+}
+
+#[tauri::command]
 fn preview_permission_memory() -> domains::permission_memory::PermissionMemoryPreview {
     domains::permission_memory::preview()
+}
+
+#[tauri::command]
+fn preflight_permission_reuse(
+    candidate_id: String,
+    requested_action: String,
+) -> domains::permission_memory::PermissionReusePreflight {
+    domains::permission_memory::preflight_reuse(candidate_id, requested_action)
+}
+
+#[tauri::command]
+fn preview_skill_library() -> domains::skill_library::SkillLibraryPreview {
+    domains::skill_library::preview()
+}
+
+#[tauri::command]
+fn preflight_skill_script_execution(
+    request: domains::skill_library::SkillScriptExecutionRequest,
+) -> Result<domains::skill_library::SkillScriptExecutionPreflight, String> {
+    Ok(domains::skill_library::preflight_script_execution(request))
+}
+
+#[tauri::command]
+async fn execute_skill_script(
+    request: domains::skill_library::SkillScriptExecutionRequest,
+    approved: bool,
+) -> Result<domains::skill_library::SkillScriptExecutionReceipt, String> {
+    let run_id = request.run_id.clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        domains::skill_library::execute_script(request, approved)
+    })
+    .await
+    .map_err(|error| format!("Skill script execution worker failed: {error}"))?;
+    match result {
+        Ok(receipt) => Ok(receipt),
+        Err(error) => {
+            services::audit_event::record_change(
+                "execute-skill-script",
+                "task-run",
+                &run_id,
+                "high",
+                "failed",
+                serde_json::json!({ "approved": approved }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "process_started": "unknown-check-saga-and-quarantine",
+                    "artifact_created": "unknown-check-saga-and-quarantine",
+                    "durable_zhishu_write": false,
+                }),
+            )?;
+            Err(format!("Skill script execution failed: {error}"))
+        }
+    }
 }
 
 #[tauri::command]
@@ -483,6 +730,55 @@ fn dry_run_agent_harness(
 }
 
 #[tauri::command]
+fn preflight_real_agent_execution(
+    request: domains::agent_harness::AgentDryRunRequest,
+) -> Result<domains::agent_harness::RealAgentExecutionPreflight, String> {
+    let run_id = request.run_id.clone();
+    let mode = request.mode.clone();
+    let report = match domains::agent_harness::preflight_real_execution(request) {
+        Ok(report) => report,
+        Err(error) => {
+            services::audit_event::record_change(
+                "preflight-real-agent-execution",
+                "task-run",
+                &run_id,
+                "high",
+                "failed",
+                serde_json::json!({
+                    "mode": mode,
+                    "process_started": false,
+                    "task_content_sent": false,
+                }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "execution_enabled": false,
+                }),
+            )?;
+            return Err(format!("Real Agent execution preflight failed: {error}"));
+        }
+    };
+    services::audit_event::record_change(
+        "preflight-real-agent-execution",
+        "task-run",
+        &report.dry_run.run_id,
+        "high",
+        &report.state,
+        serde_json::json!({
+            "mode": report.dry_run.mode.clone(),
+            "tool_id": report.dry_run.tool_id.clone(),
+            "process_started": false,
+            "task_content_sent": false,
+        }),
+        serde_json::json!({
+            "execution_enabled": false,
+            "blocker_count": report.blockers.len(),
+            "required_approvals": report.required_approvals.clone(),
+        }),
+    )?;
+    Ok(report)
+}
+
+#[tauri::command]
 fn execute_codex_agent(
     request: domains::agent_harness::AgentDryRunRequest,
     approved: bool,
@@ -511,25 +807,29 @@ fn execute_codex_agent(
             return Err(format!("Codex Agent execution failed: {error}"));
         }
     };
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn smoke_agent_adapters() -> Result<domains::agent_harness::AgentAdapterSmokeReport, String> {
+    let report = domains::agent_harness::smoke_adapters();
     services::audit_event::record_change(
-        "execute-codex-agent",
-        "task-run",
-        &run_id,
+        "smoke-agent-adapters",
+        "arsenal-tool",
+        "agent-adapters",
         "high",
-        &receipt.state,
+        &report.state,
         serde_json::json!({
-            "approved": approved,
-            "mode": receipt.dry_run.mode,
-            "sandbox": "read-only",
+            "agent_count": report.agent_count,
+            "detected_count": report.detected_count,
         }),
         serde_json::json!({
-            "artifact_id": receipt.artifact.id,
-            "exit_code": receipt.exit_code,
-            "output_truncated": receipt.output_truncated,
-            "lifecycle_state": receipt.run.lifecycle_state,
+            "execution_enabled": false,
+            "process_started": false,
+            "adapter_count": report.adapters.len(),
         }),
     )?;
-    Ok(receipt)
+    Ok(report)
 }
 
 #[tauri::command]
@@ -557,6 +857,14 @@ fn preview_browser_inspection(
         }),
     )?;
     Ok(preview)
+}
+
+#[tauri::command]
+fn preflight_browser_write_action_staging(
+    request: domains::browser_automation::BrowserInspectionRequest,
+) -> Result<domains::browser_automation::BrowserWriteActionStagingPreflight, String> {
+    domains::browser_automation::preflight_write_action_staging(request)
+        .map_err(|error| format!("Browser write action staging preflight failed: {error}"))
 }
 
 #[tauri::command]
@@ -627,6 +935,177 @@ fn preview_agent_team(
 }
 
 #[tauri::command]
+fn preflight_real_agent_team(
+    request: domains::agent_team::AgentTeamRequest,
+) -> Result<domains::agent_team::AgentTeamRealExecutionPreflight, String> {
+    let run_id = request.run_id.clone();
+    let preflight = domains::agent_team::preflight_real_execution(request)
+        .map_err(|error| format!("Real Agent team preflight failed: {error}"))?;
+    services::audit_event::record_change(
+        "preflight-real-agent-team",
+        "task-run",
+        &run_id,
+        "high",
+        &preflight.state,
+        serde_json::json!({
+            "team_mode": preflight.preview.team_mode,
+            "context_mode": preflight.preview.context_mode,
+            "estimated_agent_calls": preflight.preview.estimated_agent_calls,
+        }),
+        serde_json::json!({
+            "execution_enabled": preflight.execution_enabled,
+            "executable_step_count": preflight.executable_step_count,
+            "blocked_step_count": preflight.blocked_step_count,
+            "process_started": false,
+            "task_content_sent": false,
+        }),
+    )?;
+    Ok(preflight)
+}
+
+#[tauri::command]
+fn execute_fake_agent_team(
+    request: domains::agent_team::AgentTeamRequest,
+    approved: bool,
+) -> Result<domains::agent_team::AgentTeamExecutionReceipt, String> {
+    let run_id = request.run_id.clone();
+    let receipt = match domains::agent_team::execute_fake(request, approved) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            services::audit_event::record_change(
+                "execute-fake-agent-team",
+                "task-run",
+                &run_id,
+                "high",
+                "failed",
+                serde_json::json!({ "approved": approved }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "process_started": false,
+                    "artifact_created": false,
+                }),
+            )?;
+            return Err(format!("Fake Agent team execution failed: {error}"));
+        }
+    };
+    services::audit_event::record_change(
+        "execute-fake-agent-team",
+        "task-run",
+        &run_id,
+        "high",
+        &receipt.state,
+        serde_json::json!({
+            "approved": approved,
+            "team_mode": receipt.preview.team_mode,
+            "context_mode": receipt.preview.context_mode,
+        }),
+        serde_json::json!({
+            "artifact_id": receipt.artifact.id,
+            "calls_completed": receipt.calls_completed,
+            "calls_blocked": receipt.calls_blocked,
+            "process_started": false,
+            "output_admission": "quarantine-only",
+        }),
+    )?;
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn stage_real_agent_team(
+    request: domains::agent_team::AgentTeamRequest,
+    approved: bool,
+) -> Result<domains::agent_team::AgentTeamRealStagingReceipt, String> {
+    let run_id = request.run_id.clone();
+    let receipt = match domains::agent_team::stage_real_execution(request, approved) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            services::audit_event::record_change(
+                "stage-real-agent-team",
+                "task-run",
+                &run_id,
+                "high",
+                "failed",
+                serde_json::json!({ "approved": approved }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "process_started": false,
+                    "task_content_sent": false,
+                    "artifact_created": false,
+                }),
+            )?;
+            return Err(format!("Real Agent team staging failed: {error}"));
+        }
+    };
+    services::audit_event::record_change(
+        "stage-real-agent-team",
+        "task-run",
+        &run_id,
+        "high",
+        &receipt.state,
+        serde_json::json!({
+            "approved": approved,
+            "team_mode": receipt.preflight.preview.team_mode,
+            "context_mode": receipt.preflight.preview.context_mode,
+        }),
+        serde_json::json!({
+            "artifact_id": receipt.artifact.id,
+            "staged_step_count": receipt.staged_step_count,
+            "executable_step_count": receipt.executable_step_count,
+            "blocked_step_count": receipt.blocked_step_count,
+            "process_started": false,
+            "task_content_sent": false,
+            "output_admission": "quarantine-before-memory",
+        }),
+    )?;
+    Ok(receipt)
+}
+
+#[tauri::command]
+async fn execute_real_agent_team(
+    request: domains::agent_team::AgentTeamRequest,
+    approved: bool,
+) -> Result<domains::agent_team::AgentTeamRealExecutionReceipt, String> {
+    let run_id = request.run_id.clone();
+    let execution = tauri::async_runtime::spawn_blocking(move || {
+        domains::agent_team::execute_real(request, approved)
+    })
+    .await
+    .map_err(|error| format!("Real Agent team execution worker failed: {error}"))?;
+    let receipt = match execution {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            services::audit_event::record_change(
+                "execute-real-agent-team",
+                "task-run",
+                &run_id,
+                "critical",
+                "failed",
+                serde_json::json!({ "approved": approved }),
+                serde_json::json!({
+                    "process_started": "unknown-check-quarantine-artifacts-and-audit",
+                    "task_content_sent": "unknown-check-quarantine-artifacts-and-audit",
+                    "artifact_created": "unknown-check-quarantine-artifacts-and-audit",
+                    "error": error.to_string(),
+                }),
+            )
+            .map_err(|audit_error| {
+                format!(
+                    "Real Agent team execution failed: {error}; audit failed: {audit_error}"
+                )
+            })?;
+            return Err(format!("Real Agent team execution failed: {error}"));
+        }
+    };
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn cancel_real_agent_team(run_id: String) -> Result<bool, String> {
+    domains::agent_team::request_real_execution_cancel(run_id)
+        .map_err(|error| format!("Real Agent team cancellation failed: {error}"))
+}
+
+#[tauri::command]
 fn get_local_apps() -> Result<Vec<domains::local_app_bridge::LocalAppDescriptor>, String> {
     domains::local_app_bridge::list_apps()
         .map_err(|error| format!("Local apps are unavailable: {error}"))
@@ -636,20 +1115,9 @@ fn get_local_apps() -> Result<Vec<domains::local_app_bridge::LocalAppDescriptor>
 fn set_local_app_allow_state(
     app_id: String,
     allow_state: String,
-) -> Result<Vec<domains::local_app_bridge::LocalAppDescriptor>, String> {
-    let records =
-        domains::local_app_bridge::set_app_allow_state(app_id.clone(), allow_state.clone())
-            .map_err(|error| format!("Local app allow state could not be updated: {error}"))?;
-    services::audit_event::record_change(
-        "set-local-app-allow-state",
-        "local-app",
-        &app_id,
-        "high",
-        &allow_state,
-        serde_json::json!({ "allow_state": allow_state }),
-        serde_json::json!({ "configured_apps": records.len() }),
-    )?;
-    Ok(records)
+) -> Result<domains::local_app_bridge::LocalAppAllowStateReceipt, String> {
+    domains::local_app_bridge::set_app_allow_state(app_id, allow_state)
+        .map_err(|error| format!("Local app allow state could not be updated: {error}"))
 }
 
 #[tauri::command]
@@ -673,6 +1141,30 @@ fn preview_local_app_launch(
         }),
     )?;
     Ok(preview)
+}
+
+#[tauri::command]
+fn preflight_local_app_launch(
+    request: domains::local_app_bridge::LocalAppLaunchRequest,
+) -> Result<domains::local_app_bridge::LocalAppLaunchPreflight, String> {
+    let preflight = domains::local_app_bridge::preflight_launch(request)
+        .map_err(|error| format!("Local app launch preflight failed: {error}"))?;
+    services::audit_event::record_change(
+        "preflight-local-app-launch",
+        "local-app",
+        &preflight.app_id,
+        "high",
+        &preflight.state,
+        serde_json::json!({ "run_id": preflight.run_id.clone() }),
+        serde_json::json!({
+            "launch_state": preflight.launch_state.clone(),
+            "process_started": false,
+            "credentials_read": false,
+            "window_content_read": false,
+            "blockers": preflight.blockers.clone(),
+        }),
+    )?;
+    Ok(preflight)
 }
 
 #[tauri::command]
@@ -700,19 +1192,6 @@ fn execute_local_app_launch(
             return Err(format!("Local app launch failed: {error}"));
         }
     };
-    services::audit_event::record_change(
-        "execute-local-app-launch",
-        "local-app",
-        &app_id,
-        "high",
-        &receipt.state,
-        serde_json::json!({ "run_id": run_id, "approved": approved }),
-        serde_json::json!({
-            "artifact_id": receipt.artifact.id,
-            "process_id": receipt.process_id,
-            "task_run_completed": false,
-        }),
-    )?;
     Ok(receipt)
 }
 
@@ -737,9 +1216,192 @@ fn preview_notification(
             "endpoint_configured": preview.endpoint_configured,
             "credentials_present": preview.credentials_present,
             "delivery_started": false,
+            "webhook_staging_policy": preview.webhook_staging_policy.as_ref().map(|policy| {
+                serde_json::json!({
+                    "mode": &policy.mode,
+                    "signature_policy": &policy.signature_policy,
+                    "retry_policy": &policy.retry_policy,
+                    "redaction_policy": &policy.redaction_policy,
+                    "external_delivery_gate": &policy.external_delivery_gate,
+                    "external_delivery_started": policy.external_delivery_started,
+                    "network_started": policy.network_started,
+                })
+            }),
+            "webhook_staging_envelope": preview.webhook_staging_envelope.as_ref().map(|envelope| {
+                serde_json::json!({
+                    "contract": &envelope.contract,
+                    "idempotency_key": &envelope.idempotency_key,
+                    "payload_sha256": &envelope.payload_sha256,
+                    "destination_configured": envelope.destination_configured,
+                    "endpoint_redaction": &envelope.endpoint_redaction,
+                    "admission_state": &envelope.admission_state,
+                    "external_delivery_started": envelope.external_delivery_started,
+                    "network_started": envelope.network_started,
+                })
+            }),
         }),
     )?;
     Ok(preview)
+}
+
+#[tauri::command]
+fn preflight_webhook_staging(
+    request: domains::notification_gateway::NotificationRequest,
+) -> Result<domains::notification_gateway::WebhookStagingPreflight, String> {
+    let run_id = request.run_id.clone();
+    let channel = request.channel.trim().to_ascii_lowercase();
+    let preflight = domains::notification_gateway::preflight_webhook_staging(request)
+        .map_err(|error| format!("Webhook staging preflight failed: {error}"))?;
+    services::audit_event::record_change(
+        "preflight-webhook-staging",
+        "task-run",
+        &run_id,
+        "high",
+        &preflight.state,
+        serde_json::json!({
+            "channel": channel,
+            "endpoint_scope": &preflight.endpoint_scope,
+            "approval_required": preflight.approval_required,
+        }),
+        serde_json::json!({
+            "endpoint_configured": preflight.endpoint_configured,
+            "endpoint_allowed_for_staging": preflight.endpoint_allowed_for_staging,
+            "signature_material_present": preflight.signature_material_present,
+            "external_delivery_gate_enabled": preflight.external_delivery_gate_enabled,
+            "delivery_started": preflight.delivery_started,
+            "network_started": preflight.network_started,
+            "blocked_reasons": &preflight.blocked_reasons,
+        }),
+    )?;
+    Ok(preflight)
+}
+
+#[tauri::command]
+fn preflight_webhook_production(
+    request: domains::notification_gateway::NotificationRequest,
+) -> Result<domains::notification_gateway::WebhookProductionPreflight, String> {
+    let run_id = request.run_id.clone();
+    let channel = request.channel.trim().to_ascii_lowercase();
+    let preflight = domains::notification_gateway::preflight_webhook_production(request)
+        .map_err(|error| format!("Webhook production preflight failed: {error}"))?;
+    services::audit_event::record_change(
+        "preflight-webhook-production",
+        "task-run",
+        &run_id,
+        "critical",
+        &preflight.state,
+        serde_json::json!({
+            "channel": channel,
+            "endpoint_scope": &preflight.endpoint_scope,
+            "approval_required": preflight.approval_required,
+            "audit_required": preflight.audit_required,
+            "redaction_required": preflight.redaction_required,
+        }),
+        serde_json::json!({
+            "endpoint_configured": preflight.endpoint_configured,
+            "endpoint_allowed_for_production": preflight.endpoint_allowed_for_production,
+            "signature_material_present": preflight.signature_material_present,
+            "external_delivery_gate_enabled": preflight.external_delivery_gate_enabled,
+            "delivery_started": preflight.delivery_started,
+            "network_started": preflight.network_started,
+            "blocked_reasons": &preflight.blocked_reasons,
+        }),
+    )?;
+    Ok(preflight)
+}
+
+#[tauri::command]
+fn execute_webhook_staging(
+    request: domains::notification_gateway::NotificationRequest,
+    approved: bool,
+) -> Result<domains::notification_gateway::NotificationReceipt, String> {
+    let run_id = request.run_id.clone();
+    let channel = request.channel.trim().to_ascii_lowercase();
+    let receipt = match domains::notification_gateway::deliver_webhook_staging(request, approved) {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            services::audit_event::record_change(
+                "execute-webhook-staging",
+                "task-run",
+                &run_id,
+                "high",
+                "failed",
+                serde_json::json!({ "approved": approved, "channel": channel }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "credentials_persisted": false,
+                    "artifact_created": false,
+                    "loopback_staging_delivery_started": false,
+                    "external_delivery_started": false,
+                }),
+            )?;
+            return Err(format!("Webhook staging delivery failed: {error}"));
+        }
+    };
+    services::audit_event::record_change(
+        "execute-webhook-staging",
+        "task-run",
+        &run_id,
+        "high",
+        &receipt.state,
+        serde_json::json!({ "approved": approved, "channel": receipt.preview.channel }),
+        serde_json::json!({
+            "artifact_id": receipt.artifact.id,
+            "server_response": receipt.server_response,
+            "credentials_persisted": false,
+            "loopback_staging_delivery_started": true,
+            "external_delivery_started": false,
+            "task_run_completed": false,
+        }),
+    )?;
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn execute_webhook_production(
+    request: domains::notification_gateway::NotificationRequest,
+    approved: bool,
+) -> Result<domains::notification_gateway::NotificationReceipt, String> {
+    let run_id = request.run_id.clone();
+    let channel = request.channel.trim().to_ascii_lowercase();
+    let receipt = match domains::notification_gateway::deliver_webhook_production(request, approved)
+    {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            services::audit_event::record_change(
+                "execute-webhook-production",
+                "task-run",
+                &run_id,
+                "critical",
+                "failed",
+                serde_json::json!({ "approved": approved, "channel": channel }),
+                serde_json::json!({
+                    "error": store::short_text(&error.to_string(), 300),
+                    "credentials_persisted": false,
+                    "artifact_created": "unknown-check-delivery-attempt-journal",
+                    "production_webhook_delivery_started": "unknown-check-delivery-attempt-journal",
+                    "external_delivery_started": "unknown-check-delivery-attempt-journal",
+                }),
+            )?;
+            return Err(format!("Webhook production delivery failed: {error}"));
+        }
+    };
+    Ok(receipt)
+}
+
+#[tauri::command]
+fn get_notification_delivery_attempts() -> Result<Vec<store::NotificationDeliveryAttempt>, String> {
+    store::list_notification_delivery_attempts(100)
+        .map_err(|error| format!("Notification delivery attempts are unavailable: {error}"))
+}
+
+#[tauri::command]
+fn reconcile_notification_delivery_attempt(
+    attempt_id: String,
+    decision: String,
+) -> Result<store::NotificationDeliveryReconciliationReceipt, String> {
+    store::reconcile_notification_delivery_attempt(attempt_id, decision)
+        .map_err(|error| format!("Notification delivery reconciliation failed: {error}"))
 }
 
 #[tauri::command]
@@ -748,7 +1410,12 @@ fn execute_email_notification(
     approved: bool,
 ) -> Result<domains::notification_gateway::NotificationReceipt, String> {
     let run_id = request.run_id.clone();
-    let receipt = match domains::notification_gateway::deliver_email(request, approved) {
+    let channel = request.channel.trim().to_ascii_lowercase();
+    let receipt = match if channel == "email" {
+        domains::notification_gateway::deliver_email(request, approved)
+    } else {
+        domains::notification_gateway::deliver_dry_run(request, approved)
+    } {
         Ok(receipt) => receipt,
         Err(error) => {
             services::audit_event::record_change(
@@ -757,14 +1424,15 @@ fn execute_email_notification(
                 &run_id,
                 "high",
                 "failed",
-                serde_json::json!({ "approved": approved, "channel": "email" }),
+                serde_json::json!({ "approved": approved, "channel": channel }),
                 serde_json::json!({
                     "error": store::short_text(&error.to_string(), 300),
                     "credentials_persisted": false,
                     "artifact_created": false,
+                    "external_delivery_started": false,
                 }),
             )?;
-            return Err(format!("Email notification failed: {error}"));
+            return Err(format!("Notification delivery failed: {error}"));
         }
     };
     services::audit_event::record_change(
@@ -773,11 +1441,12 @@ fn execute_email_notification(
         &run_id,
         "high",
         &receipt.state,
-        serde_json::json!({ "approved": approved, "channel": "email" }),
+        serde_json::json!({ "approved": approved, "channel": receipt.preview.channel }),
         serde_json::json!({
             "artifact_id": receipt.artifact.id,
             "server_response": receipt.server_response,
             "credentials_persisted": false,
+            "external_delivery_started": receipt.preview.delivery_started,
             "task_run_completed": false,
         }),
     )?;
@@ -840,6 +1509,36 @@ fn preview_device_sync_import(
 }
 
 #[tauri::command]
+fn preflight_device_sync_import_apply(
+    raw: String,
+    allow_replace: bool,
+) -> Result<domains::device_sync::DeviceSyncImportApplyPreflight, String> {
+    let preflight = domains::device_sync::preflight_import_apply(raw, allow_replace)
+        .map_err(|error| format!("Device sync import apply preflight failed: {error}"))?;
+    services::audit_event::record_change(
+        "preflight-device-sync-import-apply",
+        "device-sync",
+        &preflight.local_device_id,
+        "medium",
+        &preflight.state,
+        serde_json::json!({
+            "package_id": preflight.package_id.clone(),
+            "source_device_id": preflight.source_device_id.clone(),
+            "allow_replace": allow_replace,
+        }),
+        serde_json::json!({
+            "preview_state": preflight.preview_state.clone(),
+            "can_apply": preflight.can_apply,
+            "import_started": false,
+            "durable_write_started": false,
+            "cloud_source_of_truth": false,
+            "blockers": preflight.blockers.clone(),
+        }),
+    )?;
+    Ok(preflight)
+}
+
+#[tauri::command]
 fn import_device_sync_package(
     raw: String,
     allow_replace: bool,
@@ -862,23 +1561,6 @@ fn import_device_sync_package(
             return Err(format!("Device sync import failed: {error}"));
         }
     };
-    services::audit_event::record_change(
-        "import-device-sync-package",
-        "device-sync",
-        &receipt.state.device_id,
-        "medium",
-        &receipt.preview.state,
-        serde_json::json!({
-            "allow_replace": allow_replace,
-            "package_id": receipt.preview.package_id,
-        }),
-        serde_json::json!({
-            "memory_items": receipt.imported.memory_items,
-            "relations": receipt.imported.relations,
-            "maintenance_findings": receipt.imported.maintenance_findings,
-            "last_synced_hash": receipt.state.last_synced_hash,
-        }),
-    )?;
     Ok(receipt)
 }
 
@@ -1289,11 +1971,25 @@ fn classify_risk(intent: &str) -> &'static str {
 pub fn run() {
     use tauri::Manager;
 
-    let config = config::read_runtime_config();
     let app = tauri::Builder::default()
-        .manage(scheduler::SchedulerRuntime::start(&config))
+        .setup(move |app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            let app_config_path = config::ensure_app_config_file(&app_data_dir)?;
+            config::configure_runtime_config_path(app_config_path)?;
+            let runtime_config = config::read_runtime_config();
+            let storage_root = config::storage_data_root_in(
+                &app_data_dir,
+                &runtime_config.storage_data_dir,
+            );
+            store::configure_runtime_data_root(storage_root)?;
+            app.manage(scheduler::SchedulerRuntime::start(&runtime_config));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_system_status,
+            preview_runtime_settings,
+            preflight_runtime_settings_update,
+            update_runtime_settings,
             get_scheduler_state,
             acquire_scheduler_lease,
             heartbeat_scheduler_lease,
@@ -1304,11 +2000,27 @@ pub fn run() {
             preview_production_readiness,
             preview_saga_recovery,
             preview_source_registry,
+            preflight_source_enablement,
+            review_source_enablement,
+            preflight_source_health_check,
+            execute_source_health_check,
             record_saga_recovery_review,
             get_source_observation_history,
             get_source_health_report,
             import_source_observations,
             fetch_configured_http_source,
+            preview_provider_adapter_loopback_receipt,
+            preflight_provider_receipt_admission,
+            preview_provider_receipt_admission_queue,
+            stage_provider_receipt_review_candidate,
+            get_provider_receipt_review_candidates,
+            review_provider_receipt_review_candidate,
+            preflight_provider_receipt_task_artifact,
+            create_provider_receipt_task_artifact,
+            preflight_provider_artifact_zhishu_admission,
+            review_provider_artifact_zhishu_admission,
+            create_provider_artifact_zhishu_candidate,
+            review_provider_artifact_zhishu_candidate,
             preview_arsenal_registry,
             preview_custom_arsenal_tool,
             save_custom_arsenal_tool,
@@ -1339,28 +2051,55 @@ pub fn run() {
             export_zhishu_repository,
             import_zhishu_repository,
             preview_daily_briefing,
+            preflight_daily_briefing_live_sources,
+            fetch_daily_briefing_live_source,
             archive_daily_briefing,
+            review_daily_briefing_scheduled_archive,
+            review_daily_briefing_delivery,
             preview_computer_diagnostics,
             preview_web_app_shell,
             preview_codebase_memory_adapter,
+            preflight_codebase_memory_admission,
             preview_permission_memory,
+            preflight_permission_reuse,
+            preview_skill_library,
+            preflight_skill_script_execution,
+            execute_skill_script,
             archive_computer_diagnostics,
+            preview_computer_cleanup,
+            preflight_computer_cleanup_mutation,
             preview_quant_research,
             archive_quant_research,
             dry_run_agent_harness,
+            preflight_real_agent_execution,
             execute_codex_agent,
+            smoke_agent_adapters,
             preview_browser_inspection,
+            preflight_browser_write_action_staging,
             execute_browser_inspection,
             preview_agent_team,
+            preflight_real_agent_team,
+            execute_fake_agent_team,
+            stage_real_agent_team,
+            execute_real_agent_team,
+            cancel_real_agent_team,
             get_local_apps,
             set_local_app_allow_state,
             preview_local_app_launch,
+            preflight_local_app_launch,
             execute_local_app_launch,
             preview_notification,
+            preflight_webhook_staging,
+            preflight_webhook_production,
+            execute_webhook_staging,
+            execute_webhook_production,
+            get_notification_delivery_attempts,
+            reconcile_notification_delivery_attempt,
             execute_email_notification,
             get_device_sync_state,
             export_device_sync_package,
             preview_device_sync_import,
+            preflight_device_sync_import_apply,
             import_device_sync_package,
             preview_sync_relay,
             review_memory_item,
@@ -1414,7 +2153,10 @@ mod tests {
             mode_lock_auto: false,
             scheduler_background_loop_enabled: false,
             scheduler_poll_interval_seconds: 30,
+            storage_data_dir: ".synapse".to_string(),
             aggregation_http_source_url: String::new(),
+            aggregation_http_cross_check_urls: String::new(),
+            aggregation_http_source_ids: String::new(),
             browser_allowed_hosts: String::new(),
             smtp_host: String::new(),
             smtp_port: 587,
@@ -1424,6 +2166,7 @@ mod tests {
             wechat_webhook_url: String::new(),
             external_delivery_enabled: false,
             agent_execution_enabled: false,
+            script_execution_enabled: false,
             relay_enabled: false,
             relay_endpoint: String::new(),
             warnings: Vec::new(),

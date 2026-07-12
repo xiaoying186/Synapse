@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+
 type DirectionSetupPanelProps = {
   description: string;
   frequency: string;
@@ -49,12 +51,14 @@ export function DirectionSetupPanel({
   pushEnabled,
   title,
 }: DirectionSetupPanelProps) {
+  const { text } = useI18n();
+
   return (
-    <section className="panel task-center-panel">
+    <section className="panel task-center-panel" data-testid="task-direction-setup">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Task Center</p>
-          <h3>Direction setup</h3>
+          <p className="eyebrow">{text("Task Center")}</p>
+          <h3>{text("Direction setup")}</h3>
         </div>
       </div>
       <form
@@ -65,43 +69,50 @@ export function DirectionSetupPanel({
         }}
       >
         <input
+          data-testid="direction-title-input"
           value={title}
           onChange={(event) => onTitleChange(event.currentTarget.value)}
-          placeholder="Direction name"
+          placeholder={text("Direction name")}
         />
         <input
+          data-testid="direction-keywords-input"
           value={keywords}
           onChange={(event) => onKeywordsChange(event.currentTarget.value)}
-          placeholder="keywords, separated, by commas"
+          placeholder={text("keywords, separated, by commas")}
         />
         <textarea
+          data-testid="direction-description-input"
           value={description}
           onChange={(event) => onDescriptionChange(event.currentTarget.value)}
-          placeholder="What should Synapse preferentially look for?"
+          placeholder={text("What should Synapse preferentially look for?")}
         />
         <label className="direction-option">
-          <span>Frequency</span>
-          <select value={frequency} onChange={(event) => onFrequencyChange(event.currentTarget.value)}>
-            <option value="manual">Manual</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="custom:6h">Every 6h</option>
-            <option value="custom:12h">Every 12h</option>
-            <option value="custom:2d">Every 2d</option>
+          <span>{text("Frequency")}</span>
+          <select
+            data-testid="direction-frequency-select"
+            value={frequency}
+            onChange={(event) => onFrequencyChange(event.currentTarget.value)}
+          >
+            <option value="manual">{text("Manual")}</option>
+            <option value="daily">{text("Daily")}</option>
+            <option value="weekly">{text("Weekly")}</option>
+            <option value="custom:6h">{text("Every 6h")}</option>
+            <option value="custom:12h">{text("Every 12h")}</option>
+            <option value="custom:2d">{text("Every 2d")}</option>
           </select>
         </label>
         <label className="direction-option">
-          <span>Template</span>
+          <span>{text("Template")}</span>
           <select value={outputTemplate} onChange={(event) => onOutputTemplateChange(event.currentTarget.value)}>
-            <option value="auto">Auto</option>
-            <option value="brief">Brief</option>
-            <option value="report">Report</option>
-            <option value="checklist">Checklist</option>
-            <option value="opportunity">Opportunity brief</option>
+            <option value="auto">{text("Auto")}</option>
+            <option value="brief">{text("Brief")}</option>
+            <option value="report">{text("Report")}</option>
+            <option value="checklist">{text("Checklist")}</option>
+            <option value="opportunity">{text("Opportunity brief")}</option>
           </select>
         </label>
         <label className="priority-control">
-          <span>Priority</span>
+          <span>{text("Priority")}</span>
           <input
             min={1}
             max={5}
@@ -116,34 +127,36 @@ export function DirectionSetupPanel({
             type="checkbox"
             onChange={(event) => onOnlineEnabledChange(event.currentTarget.checked)}
           />
-          <span>Online</span>
+          <span>{text("Online")}</span>
         </label>
         <label className="online-toggle">
           <input
+            data-testid="direction-push-toggle"
             checked={pushEnabled}
             type="checkbox"
             onChange={(event) => onPushEnabledChange(event.currentTarget.checked)}
           />
-          <span>Push</span>
+          <span>{text("Push")}</span>
         </label>
-        <div className="direction-option">
-          <span>Channels</span>
+        <div className="direction-option direction-channels">
+          <span>{text("Channels")}</span>
           <div className="direction-channel-options">
             {PUSH_CHANNELS.map((channel) => (
               <label className="online-toggle" key={channel.value}>
                 <input
+                  data-testid={`direction-channel-${channel.value}`}
                   checked={pushChannels.includes(channel.value)}
                   disabled={!pushEnabled}
                   type="checkbox"
                   onChange={(event) => onPushChannelToggle(channel.value, event.currentTarget.checked)}
                 />
-                <span>{channel.label}</span>
+                <span>{text(channel.label)}</span>
               </label>
             ))}
           </div>
         </div>
-        <button type="submit" disabled={isSaving}>
-          {isSaving ? "Saving" : "Save"}
+        <button type="submit" data-testid="save-direction-button" disabled={isSaving}>
+          {isSaving ? text("Saving") : text("Save")}
         </button>
       </form>
     </section>

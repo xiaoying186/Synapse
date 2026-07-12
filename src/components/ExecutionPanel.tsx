@@ -1,4 +1,5 @@
 import type { ExecutionRecord, PlanPreview } from "../types";
+import { useI18n } from "../i18n";
 
 type ExecutionPanelProps = {
   executionRecord: ExecutionRecord | null;
@@ -6,6 +7,8 @@ type ExecutionPanelProps = {
 };
 
 export function ExecutionPanel({ executionRecord, plan }: ExecutionPanelProps) {
+  const { text } = useI18n();
+
   if (!plan) {
     return null;
   }
@@ -13,30 +16,30 @@ export function ExecutionPanel({ executionRecord, plan }: ExecutionPanelProps) {
   return (
     <section className="panel execution-panel">
       <div className="panel-heading">
-        <p className="eyebrow">Execution preview</p>
-        <h3>{plan.execution_preview.strategy}</h3>
+        <p className="eyebrow">{text("Execution preview")}</p>
+        <h3>{text(plan.execution_preview.strategy)}</h3>
       </div>
       <div className="span-list">
         <div className="driver-receipt">
-          <span>{plan.driver_receipt.mode}</span>
-          <strong>{plan.driver_receipt.accepted_steps} accepted steps</strong>
-          {plan.driver_receipt.blocked_reason && <em>{plan.driver_receipt.blocked_reason}</em>}
+          <span>{text(plan.driver_receipt.mode)}</span>
+          <strong>{plan.driver_receipt.accepted_steps} {text("accepted steps")}</strong>
+          {plan.driver_receipt.blocked_reason && <em>{text(plan.driver_receipt.blocked_reason)}</em>}
         </div>
         {executionRecord && (
           <div className="queue-record">
-            <span>{executionRecord.driver_mode}</span>
-            <strong>{executionRecord.state}</strong>
+            <span>{text(executionRecord.driver_mode)}</span>
+            <strong>{text(executionRecord.state)}</strong>
             <small>{executionRecord.id}</small>
-            <em>{executionRecord.route}</em>
+            <em>{text(executionRecord.route)}</em>
           </div>
         )}
         {plan.execution_preview.spans.map((span) => (
           <div className="span-item" key={span.id}>
             <span>{span.id}</span>
             <strong>{span.label}</strong>
-            <b>{span.status}</b>
-            <small>{span.lane}</small>
-            {span.compensation && <em>{span.compensation}</em>}
+            <b>{text(span.status)}</b>
+            <small>{text(span.lane)}</small>
+            {span.compensation && <em>{text(span.compensation)}</em>}
           </div>
         ))}
       </div>

@@ -32,8 +32,39 @@ pub struct BrowserInspectionPreview {
     pub task_approval_state: String,
     pub allowed_hosts: Vec<String>,
     pub capture_screenshot: bool,
+    pub action_policy: BrowserActionPolicy,
     pub gates: Vec<String>,
     pub process_started: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BrowserActionPolicy {
+    pub mode: String,
+    pub read_actions: Vec<String>,
+    pub write_actions_allowed: Vec<String>,
+    pub write_actions_denied: Vec<String>,
+    pub approval_required_for_write: bool,
+    pub anti_injection_policy: String,
+    pub audit_policy: String,
+    pub rollback_policy: String,
+    pub denied_reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BrowserWriteActionStagingPreflight {
+    pub run_id: String,
+    pub url: String,
+    pub host: String,
+    pub state: String,
+    pub process_started: bool,
+    pub web_mutation_started: bool,
+    pub task_content_sent: bool,
+    pub approval_required: bool,
+    pub action_policy: BrowserActionPolicy,
+    pub requested_write_actions: Vec<String>,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,6 +131,7 @@ pub fn preview(
         task_approval_state: run.approval_state,
         allowed_hosts,
         capture_screenshot: request.capture_screenshot,
+        action_policy: browser_action_policy(),
         gates: vec![
             "exact-host-allowlist".to_string(),
             "http-get-navigation-only".to_string(),
@@ -113,6 +145,99 @@ pub fn preview(
         ],
         process_started: false,
     })
+}
+
+pub fn browser_action_policy() -> BrowserActionPolicy {
+    BrowserActionPolicy {
+        mode: "read-only-default-write-blocked".to_string(),
+        read_actions: vec![
+            "navigate-http-get".to_string(),
+            "capture-title".to_string(),
+            "capture-visible-text".to_string(),
+            "optional-screenshot".to_string(),
+        ],
+        write_actions_allowed: Vec::new(),
+        write_actions_denied: vec![
+            "click".to_string(),
+            "type".to_string(),
+            "form-submit".to_string(),
+            "file-upload".to_string(),
+            "download".to_string(),
+            "payment-trade-or-publish".to_string(),
+            "account-or-session-change".to_string(),
+        ],
+        approval_required_for_write: true,
+        anti_injection_policy: "strip-source-instructions-and-revalidate-action-intent".to_string(),
+        audit_policy: "record-preview-decision-and-quarantine-output-before-admission".to_string(),
+        rollback_policy: "write-actions-require-domain-specific-rollback-or-manual-recovery-plan"
+            .to_string(),
+        denied_reasons: vec![
+            "no-write-allowlist-configured".to_string(),
+            "no-human-approval-for-browser-write".to_string(),
+            "no-rollback-contract-for-web-mutation".to_string(),
+            "no-trusted-action-plan".to_string(),
+        ],
+    }
+}
+
+pub fn preflight_write_action_staging(
+    request: BrowserInspectionRequest,
+) -> Result<BrowserWriteActionStagingPreflight, store::StoreError> {
+    let run_id = required(request.run_id, "task run id")?;
+    let (url, host) = validate_url(&request.url)?;
+    let run = store::task_run_by_id(run_id.clone())?;
+    let run_ready = run.lifecycle_state == "approved"
+        && run.approval_state == "approved"
+        && run.execution_state == "approved-not-started";
+
+    Ok(build_write_action_staging_preflight(
+        run_id,
+        url.to_string(),
+        host,
+        run_ready,
+    ))
+}
+
+fn build_write_action_staging_preflight(
+    run_id: String,
+    url: String,
+    host: String,
+    run_ready: bool,
+) -> BrowserWriteActionStagingPreflight {
+    let policy = browser_action_policy();
+    let mut blockers = policy.denied_reasons.clone();
+    if !run_ready {
+        blockers.push("task-run-not-approved-for-browser-write".to_string());
+    }
+
+    BrowserWriteActionStagingPreflight {
+        run_id,
+        url,
+        host,
+        state: "browser-write-staging-blocked-by-default".to_string(),
+        process_started: false,
+        web_mutation_started: false,
+        task_content_sent: false,
+        approval_required: true,
+        requested_write_actions: policy.write_actions_denied.clone(),
+        action_policy: policy,
+        gates: vec![
+            "browser-write-allowlist-required".to_string(),
+            "explicit-human-approval-required".to_string(),
+            "anti-injection-revalidation-required".to_string(),
+            "rollback-contract-required".to_string(),
+            "audit-before-and-after-write".to_string(),
+            "output-quarantine-before-zhishu-admission".to_string(),
+        ],
+        blockers,
+        denied_actions: vec![
+            "click-without-allowlist".to_string(),
+            "type-without-approval".to_string(),
+            "submit-form-without-rollback".to_string(),
+            "upload-or-download-without-policy".to_string(),
+            "payment-trade-or-publish".to_string(),
+        ],
+    }
 }
 
 pub fn inspect(
@@ -184,19 +309,39 @@ pub fn inspect(
         }],
     )?
     .remove(0);
-    let completed = store::complete_domain_task_run(
+    let completed = match store::complete_domain_task_run(
         run.id,
         format!(
             "Browser inspection quarantined as artifact {}.",
             artifact.id
         ),
-    )?;
+    ) {
+        Ok(value) => value,
+        Err(error) => {
+            return finish_browser_artifact_compensation(
+                error,
+                store::remove_task_artifacts(vec![artifact.id.clone()]),
+            )
+        }
+    };
     Ok(BrowserInspectionReceipt {
         preview,
         result,
         artifact,
         run: completed,
     })
+}
+
+fn finish_browser_artifact_compensation<T>(
+    original_error: store::StoreError,
+    compensation: Result<(), store::StoreError>,
+) -> Result<T, store::StoreError> {
+    match compensation {
+        Ok(()) => Err(original_error),
+        Err(compensation_error) => Err(store::StoreError::InvalidInput(format!(
+            "browser inspection task completion failed: {original_error}; artifact compensation failed: {compensation_error}"
+        ))),
+    }
 }
 
 fn validate_url(raw: &str) -> Result<(Url, String), store::StoreError> {
@@ -343,5 +488,70 @@ mod tests {
     fn accepts_plain_https_url_and_normalizes_host() {
         let (_, host) = validate_url("https://EXAMPLE.com/path").unwrap();
         assert_eq!(host, "example.com");
+    }
+
+    #[test]
+    fn browser_action_policy_blocks_write_actions_by_default() {
+        let policy = browser_action_policy();
+
+        assert_eq!(policy.mode, "read-only-default-write-blocked");
+        assert!(policy.write_actions_allowed.is_empty());
+        assert!(policy.approval_required_for_write);
+        assert!(policy
+            .write_actions_denied
+            .contains(&"form-submit".to_string()));
+        assert!(policy
+            .write_actions_denied
+            .contains(&"payment-trade-or-publish".to_string()));
+        assert!(policy
+            .anti_injection_policy
+            .contains("strip-source-instructions"));
+        assert!(policy.audit_policy.contains("record-preview-decision"));
+        assert!(policy.rollback_policy.contains("rollback"));
+        assert!(policy
+            .denied_reasons
+            .contains(&"no-write-allowlist-configured".to_string()));
+    }
+
+    #[test]
+    fn browser_write_staging_preflight_never_starts_process_or_web_mutation() {
+        let preflight = build_write_action_staging_preflight(
+            "run-approved".to_string(),
+            "https://example.com/form".to_string(),
+            "example.com".to_string(),
+            true,
+        );
+
+        assert_eq!(preflight.state, "browser-write-staging-blocked-by-default");
+        assert!(!preflight.process_started);
+        assert!(!preflight.web_mutation_started);
+        assert!(!preflight.task_content_sent);
+        assert!(preflight.approval_required);
+        assert!(preflight
+            .requested_write_actions
+            .contains(&"form-submit".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"no-write-allowlist-configured".to_string()));
+        assert!(preflight
+            .gates
+            .contains(&"rollback-contract-required".to_string()));
+    }
+
+    #[test]
+    fn browser_artifact_completion_failure_reports_compensation_outcome() {
+        let original = store::StoreError::InvalidInput("injected completion failure".to_string());
+        let error = finish_browser_artifact_compensation::<()>(original, Ok(()))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("injected completion failure"));
+
+        let error = finish_browser_artifact_compensation::<()>(
+            store::StoreError::InvalidInput("injected completion failure".to_string()),
+            Err(store::StoreError::InvalidInput("injected cleanup failure".to_string())),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("artifact compensation failed"));
     }
 }

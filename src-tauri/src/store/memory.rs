@@ -1,4 +1,4 @@
-use std::path::Path;
+﻿use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -206,6 +206,32 @@ pub(crate) fn append_memory_item_at(
     Ok(record)
 }
 
+pub(crate) fn append_provider_artifact_zhishu_candidate_at(
+    path: &Path,
+    content: String,
+    tags: Vec<String>,
+) -> Result<MemoryItem, StoreError> {
+    let mut record = append_memory_item_at(
+        path,
+        "L2 Knowledge",
+        "candidate",
+        "knowledge",
+        "provider-artifact-review",
+        content,
+        tags,
+        0.58,
+        "unverified",
+    )?;
+    let mut records = read_memory_items(path)?;
+    if let Some(stored) = records.iter_mut().find(|item| item.id == record.id) {
+        stored.admission_state = "candidate".to_string();
+        stored.verification = "candidate-review-required".to_string();
+        record = stored.clone();
+        write_json_records(path, &records)?;
+    }
+    Ok(record)
+}
+
 pub(crate) fn recent_memory_items_at(
     path: &Path,
     limit: usize,
@@ -251,7 +277,7 @@ pub(crate) fn review_memory_item_at(
     Ok(reviewed)
 }
 
-fn review_memory_item_with_protection_at(
+pub(crate) fn review_memory_item_with_protection_at(
     memory_path: &Path,
     snapshot_path: &Path,
     audit_path: &Path,

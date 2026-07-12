@@ -5,6 +5,7 @@ import type {
   ZhishuSearchQuery,
   ZhishuSearchResponse,
 } from "../types";
+import { useI18n } from "../i18n";
 
 type ZhishuSearchPanelProps = {
   isGeneratingRelations: boolean;
@@ -56,18 +57,20 @@ export function ZhishuSearchPanel({
   reviewingMaintenanceFindingId,
   reviewingRelationId,
 }: ZhishuSearchPanelProps) {
+  const { text } = useI18n();
+
   function update<K extends keyof ZhishuSearchQuery>(key: K, value: ZhishuSearchQuery[K]) {
     onQueryChange({ ...query, [key]: value });
   }
 
   return (
-    <section className="panel zhishu-search-panel">
+    <section className="panel zhishu-search-panel" data-testid="zhishu-search-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Zhishu retrieval</p>
-          <h3>Search, relations, and maintenance</h3>
+          <p className="eyebrow">{text("Zhishu retrieval")}</p>
+          <h3>{text("Search, relations, and maintenance")}</h3>
         </div>
-        <strong>{response?.total_matches ?? 0} matches</strong>
+        <strong>{response?.total_matches ?? 0} {text("matches")}</strong>
       </div>
       <form
         className="zhishu-search-form"
@@ -77,36 +80,39 @@ export function ZhishuSearchPanel({
         }}
       >
         <input
+          data-testid="zhishu-search-input"
           value={query.text}
           onChange={(event) => update("text", event.target.value)}
-          placeholder="Search content, tags, type, or hub area"
+          placeholder={text("Search content, tags, type, or hub area")}
         />
         <input
           value={query.hub_area ?? ""}
           onChange={(event) => update("hub_area", event.target.value || null)}
-          placeholder="Hub area"
+          placeholder={text("Hub area")}
         />
         <input
           value={query.item_type ?? ""}
           onChange={(event) => update("item_type", event.target.value || null)}
-          placeholder="Item type"
+          placeholder={text("Item type")}
         />
         <select
+          data-testid="zhishu-search-scope-select"
           value={query.scope ?? ""}
           onChange={(event) => update("scope", event.target.value || null)}
         >
-          <option value="">Any scope</option>
-          <option value="L0 Session">L0 Session</option>
-          <option value="L1 Working">L1 Working</option>
-          <option value="L2 Knowledge">L2 Knowledge</option>
+          <option value="">{text("Any scope")}</option>
+          <option value="L0 Session">{text("L0 Session")}</option>
+          <option value="L1 Working">{text("L1 Working")}</option>
+          <option value="L2 Knowledge">{text("L2 Knowledge")}</option>
         </select>
         <select
+          data-testid="zhishu-search-admission-select"
           value={query.admission_state ?? ""}
           onChange={(event) => update("admission_state", event.target.value || null)}
         >
-          <option value="">Any admission</option>
-          <option value="captured">Captured</option>
-          <option value="accepted">Accepted</option>
+          <option value="">{text("Any admission")}</option>
+          <option value="captured">{text("Captured")}</option>
+          <option value="accepted">{text("Accepted")}</option>
         </select>
         <input
           type="number"
@@ -116,7 +122,7 @@ export function ZhishuSearchPanel({
           onChange={(event) =>
             update("minimum_confidence", Number(event.target.value) / 100)
           }
-          aria-label="Minimum confidence percent"
+          aria-label={text("Minimum confidence percent")}
         />
         <input
           type="number"
@@ -125,24 +131,24 @@ export function ZhishuSearchPanel({
           onChange={(event) =>
             update("max_age_days", event.target.value ? Number(event.target.value) : null)
           }
-          placeholder="Max age days"
+          placeholder={text("Max age days")}
         />
-        <button type="submit" disabled={isSearching}>
-          {isSearching ? "Searching" : "Search"}
+        <button type="submit" data-testid="zhishu-search-button" disabled={isSearching}>
+          {isSearching ? text("Searching") : text("Search")}
         </button>
         <button type="button" onClick={onGenerateRelations} disabled={isGeneratingRelations}>
-          {isGeneratingRelations ? "Linking" : "Suggest links"}
+          {isGeneratingRelations ? text("Linking") : text("Suggest links")}
         </button>
         <button type="button" onClick={onScanMaintenance} disabled={isScanningMaintenance}>
-          {isScanningMaintenance ? "Scanning" : "Scan maintenance"}
+          {isScanningMaintenance ? text("Scanning") : text("Scan maintenance")}
         </button>
       </form>
-      <div className="zhishu-search-results">
+      <div className="zhishu-search-results" data-testid="zhishu-search-results">
         {(response?.results ?? []).map((result) => (
-          <article className="zhishu-search-result" key={result.item.id}>
+          <article className="zhishu-search-result" data-testid="zhishu-search-result" key={result.item.id}>
             <div>
               <span>
-                {result.item.hub_area} / {result.item.item_type} / {result.item.scope}
+                {text(result.item.hub_area)} / {text(result.item.item_type)} / {text(result.item.scope)}
               </span>
               <strong>{result.item.content}</strong>
               <p>{result.explanation}</p>
@@ -156,14 +162,14 @@ export function ZhishuSearchPanel({
         {relations.map((relation) => (
           <article className="zhishu-relation-item" key={relation.id}>
             <div>
-              <span>{relation.relation_type}</span>
+              <span>{text(relation.relation_type)}</span>
               <strong>
-                {relation.source_memory_id} to {relation.target_memory_id}
+                {relation.source_memory_id} {text("to")} {relation.target_memory_id}
               </strong>
               <p>{relation.reason}</p>
               <small>{relation.evidence.join(", ")}</small>
             </div>
-            <b>{relation.review_state}</b>
+            <b>{text(relation.review_state)}</b>
             {relation.review_state === "candidate" && (
               <div className="memory-actions">
                 <button
@@ -171,14 +177,14 @@ export function ZhishuSearchPanel({
                   disabled={reviewingRelationId === relation.id}
                   onClick={() => onReviewRelation(relation.id, "accepted")}
                 >
-                  Accept link
+                  {text("Accept link")}
                 </button>
                 <button
                   type="button"
                   disabled={reviewingRelationId === relation.id}
                   onClick={() => onReviewRelation(relation.id, "rejected")}
                 >
-                  Reject link
+                  {text("Reject link")}
                 </button>
               </div>
             )}
@@ -193,13 +199,13 @@ export function ZhishuSearchPanel({
           >
             <div>
               <span>
-                {finding.finding_kind} / {finding.severity}
+                {text(finding.finding_kind)} / {text(finding.severity)}
               </span>
               <strong>{finding.item_ids.join(" + ")}</strong>
               <p>{finding.reason}</p>
               <small>{finding.evidence.join(" | ")}</small>
             </div>
-            <b>{finding.review_state}</b>
+            <b>{text(finding.review_state)}</b>
             {finding.review_state === "candidate" && (
               <div className="memory-actions">
                 <button
@@ -207,14 +213,14 @@ export function ZhishuSearchPanel({
                   disabled={reviewingMaintenanceFindingId === finding.id}
                   onClick={() => onReviewMaintenanceFinding(finding.id, "accepted")}
                 >
-                  Accept finding
+                  {text("Accept finding")}
                 </button>
                 <button
                   type="button"
                   disabled={reviewingMaintenanceFindingId === finding.id}
                   onClick={() => onReviewMaintenanceFinding(finding.id, "rejected")}
                 >
-                  Reject finding
+                  {text("Reject finding")}
                 </button>
               </div>
             )}
@@ -224,8 +230,8 @@ export function ZhishuSearchPanel({
       <div className="zhishu-repository-tools">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Repository backup</p>
-            <h3>Versioned JSON bundle</h3>
+            <p className="eyebrow">{text("Repository backup")}</p>
+            <h3>{text("Versioned JSON bundle")}</h3>
           </div>
           {repositoryImportReceipt && (
             <strong>
@@ -237,18 +243,18 @@ export function ZhishuSearchPanel({
         <textarea
           value={repositoryBundle}
           onChange={(event) => onRepositoryBundleChange(event.target.value)}
-          placeholder="Export a bundle or paste a compatible Zhishu repository bundle"
+          placeholder={text("Export a bundle or paste a compatible Zhishu repository bundle")}
         />
         <div className="memory-actions">
           <button type="button" onClick={onExportRepository}>
-            Export JSON
+            {text("Export JSON")}
           </button>
           <button
             type="button"
             disabled={isImportingRepository || !repositoryBundle.trim()}
             onClick={onImportRepository}
           >
-            {isImportingRepository ? "Importing" : "Import and replace"}
+            {isImportingRepository ? text("Importing") : text("Import and replace")}
           </button>
         </div>
       </div>

@@ -6,7 +6,7 @@ type CapabilityStatusPanelProps = {
 };
 
 export function CapabilityStatusPanel({ capabilities }: CapabilityStatusPanelProps) {
-  const { t } = useI18n();
+  const { t, text } = useI18n();
 
   if (capabilities.length === 0) {
     return null;
@@ -24,10 +24,10 @@ export function CapabilityStatusPanel({ capabilities }: CapabilityStatusPanelPro
         {capabilities.map((capability) => (
           <article className="capability-status-item" key={capability.name}>
             <div>
-              <span>{capability.name}</span>
-              <strong>{capability.detail}</strong>
+              <span>{text(capability.name)}</span>
+              <strong>{text(capability.detail)}</strong>
             </div>
-            <b>{capability.state}</b>
+            <b>{text(capability.state)}</b>
           </article>
         ))}
       </div>

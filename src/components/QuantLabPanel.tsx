@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n";
 import type { QuantResearchReport, StrategyConfig, TaskRunRecord } from "../types";
 
 type QuantLabPanelProps = {
@@ -18,6 +19,7 @@ export function QuantLabPanel({
   report,
   runs,
 }: QuantLabPanelProps) {
+  const { text } = useI18n();
   const [name, setName] = useState("MA crossover research");
   const [shortWindow, setShortWindow] = useState(5);
   const [longWindow, setLongWindow] = useState(20);
@@ -41,15 +43,15 @@ export function QuantLabPanel({
     <section className="panel quant-lab-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Domain pilot</p>
-          <h3>A-share strategy laboratory</h3>
+          <p className="eyebrow">{text("Domain pilot")}</p>
+          <h3>{text("A-share strategy laboratory")}</h3>
         </div>
-        <strong>{report?.state ?? "research only"}</strong>
+        <strong>{text(report?.state ?? "research only")}</strong>
       </div>
       <div className="quant-config">
         <input value={name} onChange={(event) => setName(event.target.value)} />
         <label>
-          Short
+          {text("Short")}
           <input
             type="number"
             min="2"
@@ -59,7 +61,7 @@ export function QuantLabPanel({
           />
         </label>
         <label>
-          Long
+          {text("Long")}
           <input
             type="number"
             min="3"
@@ -73,7 +75,7 @@ export function QuantLabPanel({
           disabled={isResearching || !csv.trim()}
           onClick={() => onResearch(csv, config())}
         >
-          {isResearching ? "Simulating" : "Run simulation"}
+          {isResearching ? text("Simulating") : text("Run simulation")}
         </button>
       </div>
       <textarea
@@ -85,17 +87,17 @@ export function QuantLabPanel({
       {report && (
         <div className="quant-report">
           <span>{report.strategy_version}</span>
-          <strong>{report.sample_count} samples</strong>
-          <b>Strategy {percent(report.strategy_return)}</b>
-          <b>Benchmark {percent(report.benchmark_return)}</b>
-          <b>Drawdown {percent(report.max_drawdown)}</b>
+          <strong>{report.sample_count} {text("samples")}</strong>
+          <b>{text("Strategy")} {percent(report.strategy_return)}</b>
+          <b>{text("Benchmark")} {percent(report.benchmark_return)}</b>
+          <b>{text("Drawdown")} {percent(report.max_drawdown)}</b>
           <small>{report.warnings.join(" | ")}</small>
           <small>{report.disclaimer}</small>
         </div>
       )}
       <div className="daily-briefing-archive">
         <select value={runId} onChange={(event) => setRunId(event.target.value)}>
-          <option value="">Select approved Task Run</option>
+          <option value="">{text("Select approved Task Run")}</option>
           {approvedRuns.map((run) => (
             <option key={run.id} value={run.id}>
               {run.task_direction_title} / {run.id}
@@ -107,7 +109,7 @@ export function QuantLabPanel({
           disabled={isArchiving || !runId || report?.state !== "research-ready"}
           onClick={() => onArchive(runId, csv, config())}
         >
-          {isArchiving ? "Archiving" : "Archive research"}
+          {isArchiving ? text("Archiving") : text("Archive research")}
         </button>
       </div>
     </section>

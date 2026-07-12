@@ -26,6 +26,25 @@ pub struct CodebaseMemoryPreview {
     pub denied_actions: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CodebaseMemoryAdmissionPreflight {
+    pub generated_at_ms: u128,
+    pub state: String,
+    pub adapter_state: String,
+    pub source_id: String,
+    pub process_started: bool,
+    pub repository_scanned: bool,
+    pub file_content_ingested: bool,
+    pub l2_write_started: bool,
+    pub requires_index_freshness_check: bool,
+    pub requires_source_scope_review: bool,
+    pub requires_human_summary_review: bool,
+    pub requires_zhishu_admission_review: bool,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
+}
+
 pub fn preview() -> CodebaseMemoryPreview {
     let project_root = project_root();
     let index_root = project_root.join(".codegraph");
@@ -91,6 +110,59 @@ pub fn preview() -> CodebaseMemoryPreview {
     }
 }
 
+pub fn preflight_admission(source_id: String) -> CodebaseMemoryAdmissionPreflight {
+    let preview = preview();
+    let source_id = source_id.trim();
+    let source = preview
+        .sources
+        .iter()
+        .find(|source| source.id == source_id)
+        .or_else(|| preview.sources.first());
+
+    CodebaseMemoryAdmissionPreflight {
+        generated_at_ms: store::now_millis(),
+        state: "codebase-memory-admission-review-required".to_string(),
+        adapter_state: preview.state,
+        source_id: source
+            .map(|source| source.id.clone())
+            .unwrap_or_else(|| "codebase-memory-source-missing".to_string()),
+        process_started: false,
+        repository_scanned: false,
+        file_content_ingested: false,
+        l2_write_started: false,
+        requires_index_freshness_check: true,
+        requires_source_scope_review: true,
+        requires_human_summary_review: true,
+        requires_zhishu_admission_review: true,
+        gates: vec![
+            "codegraph-readonly-structural-context".to_string(),
+            "index-freshness-visible-before-use".to_string(),
+            "source-scope-review-before-admission".to_string(),
+            "human-summary-review-before-l2-write".to_string(),
+            "review-before-zhishu-admission".to_string(),
+            "no-repository-wide-scan".to_string(),
+            "no-file-content-ingest".to_string(),
+            "no-command-execution".to_string(),
+            "no-automatic-l2-write".to_string(),
+        ],
+        blockers: vec![
+            "index-freshness-not-confirmed".to_string(),
+            "source-scope-not-reviewed".to_string(),
+            "human-summary-not-approved".to_string(),
+            "zhishu-admission-not-approved".to_string(),
+        ],
+        denied_actions: vec![
+            "run-codegraph-init".to_string(),
+            "rebuild-index-without-approval".to_string(),
+            "repository-wide-scan".to_string(),
+            "ingest-raw-source-files".to_string(),
+            "write-durable-memory".to_string(),
+            "read-secrets-or-env".to_string(),
+            "apply-code-changes".to_string(),
+        ],
+    }
+}
+
 fn source(id: &str, label: &str, path: &str, state: &str, scope: &str) -> CodebaseMemorySource {
     CodebaseMemorySource {
         id: id.to_string(),
@@ -138,5 +210,30 @@ mod tests {
         assert!(preview
             .denied_actions
             .contains(&"rebuild-index-without-approval".to_string()));
+    }
+
+    #[test]
+    fn admission_preflight_never_scans_ingests_or_writes_l2() {
+        let preflight = preflight_admission("codegraph-index".to_string());
+
+        assert_eq!(preflight.state, "codebase-memory-admission-review-required");
+        assert_eq!(preflight.source_id, "codegraph-index");
+        assert!(!preflight.process_started);
+        assert!(!preflight.repository_scanned);
+        assert!(!preflight.file_content_ingested);
+        assert!(!preflight.l2_write_started);
+        assert!(preflight.requires_index_freshness_check);
+        assert!(preflight.requires_source_scope_review);
+        assert!(preflight.requires_human_summary_review);
+        assert!(preflight.requires_zhishu_admission_review);
+        assert!(preflight
+            .gates
+            .contains(&"human-summary-review-before-l2-write".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"zhishu-admission-not-approved".to_string()));
+        assert!(preflight
+            .denied_actions
+            .contains(&"write-durable-memory".to_string()));
     }
 }

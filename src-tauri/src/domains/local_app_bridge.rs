@@ -44,6 +44,39 @@ pub struct LocalAppLaunchReceipt {
     pub state: String,
     pub process_id: u32,
     pub artifact: store::TaskArtifactRecord,
+    pub audit_event: store::AuditEvent,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LocalAppAllowStateReceipt {
+    pub apps: Vec<LocalAppDescriptor>,
+    pub changed_app: LocalAppDescriptor,
+    pub snapshot: store::SnapshotRecord,
+    pub audit_event: store::AuditEvent,
+    pub saga: store::SagaTransaction,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LocalAppLaunchPreflight {
+    pub generated_at_ms: u128,
+    pub state: String,
+    pub launch_state: String,
+    pub app_id: String,
+    pub run_id: String,
+    pub process_started: bool,
+    pub argument_count: usize,
+    pub user_arguments_allowed: bool,
+    pub credentials_read: bool,
+    pub window_content_read: bool,
+    pub requires_bridge_allowlist: bool,
+    pub requires_app_allowlist: bool,
+    pub requires_task_approval: bool,
+    pub requires_explicit_launch_confirmation: bool,
+    pub audit_required: bool,
+    pub session_blind: bool,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
 }
 
 pub fn list_apps() -> Result<Vec<LocalAppDescriptor>, store::StoreError> {
@@ -62,11 +95,12 @@ pub fn list_apps() -> Result<Vec<LocalAppDescriptor>, store::StoreError> {
 pub fn set_app_allow_state(
     app_id: String,
     allow_state: String,
-) -> Result<Vec<LocalAppDescriptor>, store::StoreError> {
+) -> Result<LocalAppAllowStateReceipt, store::StoreError> {
     let app_id = required(app_id, "local app id")?;
     let allow_state = normalize_allow_state(&allow_state)?;
     let path = store::local_apps_path();
-    let mut records = list_apps()?;
+    let previous = list_apps()?;
+    let mut records = previous.clone();
     let Some(app) = records.iter_mut().find(|app| app.id == app_id) else {
         return Err(store::StoreError::NotFound(app_id));
     };
@@ -76,8 +110,76 @@ pub fn set_app_allow_state(
         ));
     }
     app.allow_state = allow_state.to_string();
-    store::write_json_records(&path, &records)?;
-    Ok(records)
+    let changed_app = app.clone();
+    let saga = store::begin_saga(
+        "local-app-allow-state-review".to_string(),
+        app_id.clone(),
+        serde_json::json!({ "allow_state": allow_state }),
+    )?;
+    let snapshot = match store::create_snapshot(
+        "local-app-allow-state".to_string(),
+        app_id.clone(),
+        "before-local-app-allow-state-review".to_string(),
+        serde_json::json!({ "apps": previous, "saga_id": saga.id }),
+    ) {
+        Ok(snapshot) => snapshot,
+        Err(error) => return fail_allow_state_saga(&saga, error),
+    };
+    let audit_event = finalize_allow_state_review(
+        || store::write_json_records(&path, &records),
+        || store::append_audit_event(store::NewAuditEvent {
+            actor: "local-user".to_string(),
+            action: "set-local-app-allow-state".to_string(),
+            target_type: "local-app".to_string(),
+            target_id: app_id.clone(),
+            risk_level: "high".to_string(),
+            decision: allow_state.to_string(),
+            input: serde_json::json!({
+                "allow_state": allow_state,
+                "snapshot_id": snapshot.id,
+                "saga_id": saga.id,
+            }),
+            result_summary: serde_json::json!({
+                "configured_apps": records.len(),
+                "rollback_snapshot_id": snapshot.id,
+            }),
+            error: None,
+        }),
+        || compensate_allow_state_review(&saga, &path, &previous),
+    )?;
+    let saga = match store::transition_saga(saga.id.clone(), "committed".to_string()) {
+        Ok(saga) => saga,
+        Err(error) => {
+            return finish_allow_state_compensation(
+                error,
+                compensate_allow_state_review(&saga, &path, &previous),
+            )
+        }
+    };
+    Ok(LocalAppAllowStateReceipt { apps: records, changed_app, snapshot, audit_event, saga })
+}
+
+fn fail_allow_state_saga<T>(saga: &store::SagaTransaction, error: store::StoreError) -> Result<T, store::StoreError> {
+    let _ = store::transition_saga(saga.id.clone(), "failed".to_string());
+    Err(error)
+}
+
+fn finalize_allow_state_review<T, FWrite, FAudit, FCompensate>(write: FWrite, audit: FAudit, compensate: FCompensate) -> Result<T, store::StoreError>
+where FWrite: FnOnce() -> Result<(), store::StoreError>, FAudit: FnOnce() -> Result<T, store::StoreError>, FCompensate: FnOnce() -> Result<(), store::StoreError> {
+    if let Err(error) = write() { return finish_allow_state_compensation(error, compensate()); }
+    match audit() { Ok(value) => Ok(value), Err(error) => finish_allow_state_compensation(error, compensate()) }
+}
+
+fn finish_allow_state_compensation<T>(original: store::StoreError, compensation: Result<(), store::StoreError>) -> Result<T, store::StoreError> {
+    match compensation { Ok(()) => Err(original), Err(compensation_error) => Err(store::StoreError::InvalidInput(format!("local app allow-state review failed: {original}; compensation failed: {compensation_error}"))) }
+}
+
+fn compensate_allow_state_review(saga: &store::SagaTransaction, path: &std::path::Path, previous: &[LocalAppDescriptor]) -> Result<(), store::StoreError> {
+    let _ = store::transition_saga(saga.id.clone(), "compensating".to_string());
+    let result = store::write_json_records(path, previous);
+    let state = if result.is_ok() { "compensated" } else { "failed" };
+    let _ = store::transition_saga(saga.id.clone(), state.to_string());
+    result
 }
 
 pub fn preview(request: LocalAppLaunchRequest) -> Result<LocalAppLaunchPreview, store::StoreError> {
@@ -136,14 +238,14 @@ pub fn launch(
             "local app launch requires explicit approval".to_string(),
         ));
     }
-    let child = Command::new(&preview.app.executable)
+    let mut child = Command::new(&preview.app.executable)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()?;
     let process_id = child.id();
     let run = store::task_run_by_id(preview.run_id.clone())?;
-    let artifact = store::append_task_artifacts(
+    let artifact = match store::append_task_artifacts(
         run.id,
         run.task_direction_id,
         vec![store::NewTaskArtifact {
@@ -163,15 +265,129 @@ pub fn launch(
                 "task_run_completed": false,
             }),
         }],
-    )?
-    .remove(0);
+    ) {
+        Ok(mut artifacts) => artifacts.remove(0),
+        Err(error) => return terminate_after_persistence_failure(&mut child, process_id, error),
+    };
+    let audit_event = match store::append_audit_event(store::NewAuditEvent {
+        actor: "taiheng".to_string(),
+        action: "execute-local-app-launch".to_string(),
+        target_type: "local-app".to_string(),
+        target_id: preview.app.id.clone(),
+        risk_level: "high".to_string(),
+        decision: "launched-app-owned-session".to_string(),
+        input: serde_json::json!({ "run_id": preview.run_id, "approved": approved }),
+        result_summary: serde_json::json!({
+            "artifact_id": artifact.id,
+            "process_id": process_id,
+            "task_run_completed": false,
+            "credentials_read": false,
+            "window_content_read": false,
+        }),
+        error: None,
+    }) {
+        Ok(event) => event,
+        Err(error) => {
+            let rollback = store::remove_task_artifacts(vec![artifact.id.clone()]);
+            let persistence_error = match rollback {
+                Ok(()) => error,
+                Err(rollback_error) => store::StoreError::InvalidInput(format!(
+                    "audit failed: {error}; artifact rollback failed: {rollback_error}"
+                )),
+            };
+            return terminate_after_persistence_failure(
+                &mut child,
+                process_id,
+                persistence_error,
+            );
+        }
+    };
 
     Ok(LocalAppLaunchReceipt {
         preview,
         state: "launched-app-owned-session".to_string(),
         process_id,
         artifact,
+        audit_event,
     })
+}
+
+fn terminate_after_persistence_failure<T>(
+    child: &mut std::process::Child,
+    process_id: u32,
+    error: store::StoreError,
+) -> Result<T, store::StoreError> {
+    let terminate_error = child.kill().err();
+    let _ = child.wait();
+    match terminate_error {
+        Some(terminate_error) => Err(store::StoreError::InvalidInput(format!(
+            "local app process {process_id} started but persistence failed: {error}; process termination failed: {terminate_error}"
+        ))),
+        None => Err(store::StoreError::InvalidInput(format!(
+            "local app process {process_id} was terminated because persistence failed: {error}"
+        ))),
+    }
+}
+
+pub fn preflight_launch(
+    request: LocalAppLaunchRequest,
+) -> Result<LocalAppLaunchPreflight, store::StoreError> {
+    let preview = preview(request)?;
+    Ok(build_launch_preflight(preview))
+}
+
+fn build_launch_preflight(preview: LocalAppLaunchPreview) -> LocalAppLaunchPreflight {
+    let blockers = match preview.state.as_str() {
+        "ready-for-explicit-launch-approval" => {
+            vec!["explicit-launch-confirmation-not-granted".to_string()]
+        }
+        "blocked-not-detected" => vec!["local-app-or-bridge-not-detected".to_string()],
+        "blocked-bridge-not-allowed" => vec!["bridge-tool-not-allowlisted".to_string()],
+        "blocked-app-not-allowed" => vec!["local-app-not-allowlisted".to_string()],
+        "blocked-run-not-approved" => vec!["task-run-not-approved".to_string()],
+        other => vec![format!("unhandled-launch-state-{other}")],
+    };
+
+    LocalAppLaunchPreflight {
+        generated_at_ms: store::now_millis(),
+        state: "local-app-launch-preflight-review-required".to_string(),
+        launch_state: preview.state.clone(),
+        app_id: preview.app.id,
+        run_id: preview.run_id,
+        process_started: false,
+        argument_count: preview.argument_preview.len(),
+        user_arguments_allowed: false,
+        credentials_read: false,
+        window_content_read: false,
+        requires_bridge_allowlist: true,
+        requires_app_allowlist: true,
+        requires_task_approval: true,
+        requires_explicit_launch_confirmation: true,
+        audit_required: true,
+        session_blind: true,
+        gates: vec![
+            "built-in-or-reviewed-app-descriptor".to_string(),
+            "bridge-tool-allowlisted".to_string(),
+            "app-allowlisted".to_string(),
+            "task-run-approved".to_string(),
+            "explicit-launch-confirmation".to_string(),
+            "argument-vector-only".to_string(),
+            "no-user-supplied-executable".to_string(),
+            "no-user-supplied-arguments".to_string(),
+            "no-credential-or-session-extraction".to_string(),
+            "no-window-content-reading".to_string(),
+            "audit-required-before-local-app-launch".to_string(),
+        ],
+        blockers,
+        denied_actions: vec![
+            "user-supplied-executable".to_string(),
+            "user-supplied-arguments".to_string(),
+            "credential-read".to_string(),
+            "session-extraction".to_string(),
+            "window-content-read".to_string(),
+            "background-launch-without-confirmation".to_string(),
+        ],
+    }
 }
 
 fn readiness_state(
@@ -255,6 +471,18 @@ mod tests {
     }
 
     #[test]
+    fn allow_state_review_compensates_audit_failure() {
+        let mut compensated = false;
+        let result: Result<(), store::StoreError> = finalize_allow_state_review(
+            || Ok(()),
+            || Err(store::StoreError::InvalidInput("audit failed".to_string())),
+            || { compensated = true; Ok(()) },
+        );
+        assert!(result.is_err());
+        assert!(compensated);
+    }
+
+    #[test]
     fn canonical_descriptor_exposes_no_arguments_or_session_access() {
         let app = default_notepad();
 
@@ -263,5 +491,47 @@ mod tests {
             .capabilities
             .contains(&"no-session-extraction".to_string()));
         assert_eq!(app.session_policy, "app-owned-session-only");
+    }
+
+    #[test]
+    fn local_app_launch_preflight_never_starts_process_or_reads_session() {
+        let app = default_notepad();
+        let preview = LocalAppLaunchPreview {
+            app,
+            run_id: "run-local-app".to_string(),
+            state: "blocked-app-not-allowed".to_string(),
+            bridge_discovery_state: "detected".to_string(),
+            bridge_allow_state: "allowed".to_string(),
+            task_approval_state: "approved".to_string(),
+            argument_preview: vec![r"C:\Windows\System32\notepad.exe".to_string()],
+            gates: vec![],
+            process_started: false,
+        };
+        let preflight = build_launch_preflight(preview);
+
+        assert_eq!(
+            preflight.state,
+            "local-app-launch-preflight-review-required"
+        );
+        assert_eq!(preflight.launch_state, "blocked-app-not-allowed");
+        assert!(!preflight.process_started);
+        assert!(!preflight.user_arguments_allowed);
+        assert!(!preflight.credentials_read);
+        assert!(!preflight.window_content_read);
+        assert!(preflight.requires_bridge_allowlist);
+        assert!(preflight.requires_app_allowlist);
+        assert!(preflight.requires_task_approval);
+        assert!(preflight.requires_explicit_launch_confirmation);
+        assert!(preflight.audit_required);
+        assert!(preflight.session_blind);
+        assert!(preflight
+            .gates
+            .contains(&"no-user-supplied-arguments".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"local-app-not-allowlisted".to_string()));
+        assert!(preflight
+            .denied_actions
+            .contains(&"session-extraction".to_string()));
     }
 }

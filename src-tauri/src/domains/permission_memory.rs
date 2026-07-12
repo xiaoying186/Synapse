@@ -26,6 +26,29 @@ pub struct PermissionMemoryPreview {
     pub auto_grants_permissions: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PermissionReusePreflight {
+    pub generated_at_ms: u128,
+    pub state: String,
+    pub candidate_id: String,
+    pub candidate_state: String,
+    pub permission_level: String,
+    pub scope: String,
+    pub tool_scope: String,
+    pub requested_action: String,
+    pub auto_grant_started: bool,
+    pub permission_reused: bool,
+    pub durable_policy_write_started: bool,
+    pub requires_same_scope: bool,
+    pub requires_fresh_audit_reference: bool,
+    pub requires_explicit_review: bool,
+    pub requires_expiry_check: bool,
+    pub high_risk_blocked: bool,
+    pub gates: Vec<String>,
+    pub blockers: Vec<String>,
+    pub denied_actions: Vec<String>,
+}
+
 pub fn preview() -> PermissionMemoryPreview {
     PermissionMemoryPreview {
         generated_at_ms: store::now_millis(),
@@ -89,6 +112,80 @@ pub fn preview() -> PermissionMemoryPreview {
     }
 }
 
+pub fn preflight_reuse(candidate_id: String, requested_action: String) -> PermissionReusePreflight {
+    let preview = preview();
+    let requested_candidate_id = candidate_id.trim();
+    let candidate = preview
+        .candidates
+        .iter()
+        .find(|candidate| candidate.id == requested_candidate_id)
+        .or_else(|| preview.candidates.first());
+    let requested_action = requested_action.trim();
+    let requested_action = if requested_action.is_empty() {
+        "unspecified-permission-reuse".to_string()
+    } else {
+        requested_action.to_string()
+    };
+    let high_risk_blocked = preview
+        .non_reusable_risks
+        .iter()
+        .any(|risk| requested_action.contains(risk));
+
+    PermissionReusePreflight {
+        generated_at_ms: store::now_millis(),
+        state: "permission-reuse-review-required".to_string(),
+        candidate_id: candidate
+            .map(|candidate| candidate.id.clone())
+            .unwrap_or_else(|| "permission-memory-candidate-missing".to_string()),
+        candidate_state: candidate
+            .map(|candidate| candidate.reuse_state.clone())
+            .unwrap_or_else(|| "candidate-not-found".to_string()),
+        permission_level: candidate
+            .map(|candidate| candidate.permission_level.clone())
+            .unwrap_or_else(|| "none".to_string()),
+        scope: candidate
+            .map(|candidate| candidate.scope.clone())
+            .unwrap_or_else(|| "none".to_string()),
+        tool_scope: candidate
+            .map(|candidate| candidate.tool_scope.clone())
+            .unwrap_or_else(|| "none".to_string()),
+        requested_action,
+        auto_grant_started: false,
+        permission_reused: false,
+        durable_policy_write_started: false,
+        requires_same_scope: true,
+        requires_fresh_audit_reference: true,
+        requires_explicit_review: true,
+        requires_expiry_check: true,
+        high_risk_blocked,
+        gates: vec![
+            "same-scope-required-before-permission-reuse".to_string(),
+            "same-tool-scope-required-before-permission-reuse".to_string(),
+            "fresh-audit-reference-required".to_string(),
+            "expiry-check-required-before-permission-reuse".to_string(),
+            "explicit-review-before-action".to_string(),
+            "high-risk-never-auto-reuse".to_string(),
+            "no-policy-engine-auto-grant".to_string(),
+        ],
+        blockers: vec![
+            "permission-reuse-not-user-approved".to_string(),
+            "fresh-audit-reference-not-attached".to_string(),
+            "expiry-check-not-confirmed".to_string(),
+            "policy-engine-auto-grant-disabled".to_string(),
+        ],
+        denied_actions: vec![
+            "cross-project".to_string(),
+            "delete-move-cleanup".to_string(),
+            "account-or-session-action".to_string(),
+            "publish-or-submit".to_string(),
+            "trade-or-financial-action".to_string(),
+            "durable-zhishu-write".to_string(),
+            "external-agent-execution".to_string(),
+            "auto-grant-permission".to_string(),
+        ],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,5 +223,33 @@ mod tests {
         assert!(preview
             .non_reusable_risks
             .contains(&"trade-or-financial-action".to_string()));
+    }
+
+    #[test]
+    fn permission_reuse_preflight_never_auto_grants_or_writes_policy() {
+        let preflight = preflight_reuse(
+            "pm-local-readonly-code-context".to_string(),
+            "trade-or-financial-action".to_string(),
+        );
+
+        assert_eq!(preflight.state, "permission-reuse-review-required");
+        assert_eq!(preflight.candidate_id, "pm-local-readonly-code-context");
+        assert!(!preflight.auto_grant_started);
+        assert!(!preflight.permission_reused);
+        assert!(!preflight.durable_policy_write_started);
+        assert!(preflight.requires_same_scope);
+        assert!(preflight.requires_fresh_audit_reference);
+        assert!(preflight.requires_explicit_review);
+        assert!(preflight.requires_expiry_check);
+        assert!(preflight.high_risk_blocked);
+        assert!(preflight
+            .gates
+            .contains(&"no-policy-engine-auto-grant".to_string()));
+        assert!(preflight
+            .blockers
+            .contains(&"permission-reuse-not-user-approved".to_string()));
+        assert!(preflight
+            .denied_actions
+            .contains(&"auto-grant-permission".to_string()));
     }
 }

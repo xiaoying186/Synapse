@@ -12,6 +12,8 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
 
 ## P0 - Stabilize Collaboration And Release Baseline
 
+- [ ] Keep `docs/PRODUCTION_GAP_MATRIX.md` current as the production target
+      tracker for the final "all designed features + production-ready" goal.
 - [ ] Reconcile local `main` with remote `main` after the GitHub API fallback
       push so future work can use normal branch/PR flow.
 - [ ] Commit or explicitly discard the repository collaboration baseline files:
@@ -19,6 +21,8 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
       `docs/codex/`, `docs/design/`, `.gitignore`, and `CHANGELOG.md`.
 - [ ] Prepare a `0.0.1` release plan for the bilingual UI installer after the
       branch state is clean. A guarded manual release workflow now exists.
+- [x] Add release artifact acceptance and NSIS installer smoke gates to the
+      manual release path.
 
 ## P0 - Taiheng Safety Execution Layer
 
@@ -28,8 +32,9 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
       UI surfacing remains pending.
 - [x] Add an initial command safety classifier for Agent Harness requests:
       dangerous-command detection, credential markers, network markers, package
-      install markers, and Git mutation markers. Path boundary checks and
-      durable audit records remain pending.
+      install markers, and Git mutation markers. Read-only project-root workspace
+      binding, dry-run audit evidence, and direct guarded-execution transaction
+      audit/compensation are now implemented; broader adapter coverage remains pending.
 - [x] Add repository trust levels for Agent execution: known workspace,
       unknown workspace, dirty workspace, public repo, private/local-only repo.
 - [x] Run Secret Guard in the public baseline GitHub Actions workflow before
@@ -50,15 +55,27 @@ need evaluation belong in `TODO-SYNAPSE-FUSION.md`.
 
 ## P1 - Product Surface And Maintainability
 
-- [ ] Expand i18n coverage from the shell and high-frequency panels to all
-      user-facing feature panels, keeping English and Simplified Chinese keys
-      synchronized with `npm.cmd run i18n:check`.
+- [x] Expand i18n coverage from the shell and high-frequency panels to all
+      static `text("...")` UI strings, keeping English and Simplified Chinese
+      keys synchronized with `npm.cmd run i18n:check`.
 - [x] Add focused UI smoke coverage for language switching.
 - [ ] Continue reducing `src/App.tsx` by moving domain-specific state and
       invoke operations into focused hooks without changing behavior. Initial
       Production Overview and Data Source Registry preview hook extractions are
-      complete; preview adapter hook extraction is also complete.
-- [ ] Extend production readiness checks to report i18n coverage and release
+      complete; preview adapter, Provider artifact admission, and Source
+      aggregation, Local App Bridge, and Agent Harness hook extractions are also
+      complete. Xingtai task-loop and Zhishu knowledge hook extractions are also
+      complete. Zhishu admission review and Taiheng protected snapshot hook
+      extractions are also complete. Baigong Arsenal registry and mock adapter
+      hook extraction is also complete. Context Budget preview hook extraction is
+      also complete. Zhishu inspiration and experience capture stream hook
+      extraction is also complete. Quant Lab research and archive hook extraction
+      is also complete. Plan submission, history, review, and selection hook
+      extraction is also complete. Taiheng runtime status, audit, and Zhishu
+      snapshot hook extraction is also complete. Synapse core memory, executor
+      contract, synthesis preview, and synthesis promotion hook extraction is
+      also complete.
+- [x] Extend production readiness checks to report i18n coverage and release
       artifact freshness.
 
 ## P2 - Business/Domain Modules
