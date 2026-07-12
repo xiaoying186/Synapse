@@ -358,6 +358,11 @@ fn run_system_inventory_script() -> Result<ScriptProcessOutput, store::StoreErro
         .env_clear()
         .env("SystemRoot", std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string()))
         .env("WINDIR", std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".to_string()))
+        .env("TEMP", std::env::var("TEMP").unwrap_or_else(|_| r"C:\Windows\Temp".to_string()))
+        .env("TMP", std::env::var("TMP").unwrap_or_else(|_| r"C:\Windows\Temp".to_string()))
+        .env("USERPROFILE", std::env::var("USERPROFILE").unwrap_or_else(|_| r"C:\Users\Default".to_string()))
+        .env("APPDATA", std::env::var("APPDATA").unwrap_or_else(|_| r"C:\Users\Default\AppData\Roaming".to_string()))
+        .env("LOCALAPPDATA", std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\Users\Default\AppData\Local".to_string()))
         .spawn()
         .map_err(|error| store::StoreError::InvalidInput(format!("skill script process could not start: {error}")))?;
     let stdout = child.stdout.take().ok_or_else(|| store::StoreError::InvalidInput("skill script stdout unavailable".to_string()))?;
