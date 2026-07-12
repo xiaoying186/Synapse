@@ -590,6 +590,7 @@ async function smokeViewport(browser, name, width, height) {
   await assertNavigationFeedback(page);
   await assertZhishuMemoryLoop(page, name);
   await assertXingtaiTaskLoop(page, name);
+  await assertSkillLibraryPreview(page);
   await assertSourceEnablementPreflight(page);
   await assertSourceEnablementReview(page);
   await assertSourceHealthCheck(page);
@@ -1037,7 +1038,6 @@ async function assertZhishuMemoryLoop(page, name) {
   await page.getByTestId("nav-zhi-shu").click();
   await assertCodebaseMemoryAdmissionPreflight(page);
   await assertPermissionMemoryReusePreflight(page);
-  await assertSkillLibraryPreview(page);
   const title = `UI smoke Zhishu durable template ${name}`;
   await page.getByTestId("zhishu-capture-input").fill(title);
   await page.getByTestId("zhishu-kind-select").selectOption("knowledge");
