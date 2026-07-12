@@ -660,8 +660,8 @@ async function assertXingtaiTaskLoop(page, name) {
   await page.getByText("schedule-tick").first().waitFor({ state: "visible", timeout: 10_000 });
   await page.getByTestId("approve-task-run-button").first().click();
   await assertAgentTeamRealPreflight(page, name);
-  await assertDailyBriefingEvidenceContract(page, name);
   await assertNotificationMockReceipt(page, name);
+  await assertDailyBriefingEvidenceContract(page, name);
   await assertLocalAppLaunchPreflight(page);
   await page.getByTestId("execute-task-run-button").first().waitFor({ state: "visible", timeout: 10_000 });
   await page.getByTestId("execute-task-run-button").first().click();
