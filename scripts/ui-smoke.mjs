@@ -981,7 +981,7 @@ async function assertDailyBriefingEvidenceContract(page, name) {
     .getByTestId("daily-briefing-scheduled-archive-review")
     .waitFor({ state: "visible", timeout: 10_000 });
   await page.getByText("Scheduled archive review").first().waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator(".daily-briefing-archive select").selectOption({ index: 1 });
+  await page.locator(".daily-briefing-archive select").first().selectOption({ index: 1 });
   await page.getByText("Archive to run").click();
   await page
     .getByTestId("daily-briefing-archive-receipt")
