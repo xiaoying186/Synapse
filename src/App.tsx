@@ -1,4 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { AgentHarnessPanel } from "./components/AgentHarnessPanel";
+import { AgentTeamPanel } from "./components/AgentTeamPanel";
+import { CapabilityPreviewPanel } from "./components/CapabilityPreviewPanel";
+import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
+import { NotificationGatewayPanel } from "./components/NotificationGatewayPanel";
 import { AuditPanel } from "./components/AuditPanel";
 import { LocalAppBridgePanel } from "./components/LocalAppBridgePanel";
 import { DeviceSyncPanel } from "./components/DeviceSyncPanel";
@@ -67,21 +72,6 @@ import { useZhishuKnowledge } from "./app/useZhishuKnowledge";
 import { useI18n } from "./i18n";
 import "./App.css";
 
-const CapabilityPreviewPanel = lazy(() =>
-  import("./components/CapabilityPreviewPanel").then((module) => ({ default: module.CapabilityPreviewPanel })),
-);
-const AgentHarnessPanel = lazy(() =>
-  import("./components/AgentHarnessPanel").then((module) => ({ default: module.AgentHarnessPanel })),
-);
-const AgentTeamPanel = lazy(() =>
-  import("./components/AgentTeamPanel").then((module) => ({ default: module.AgentTeamPanel })),
-);
-const NotificationGatewayPanel = lazy(() =>
-  import("./components/NotificationGatewayPanel").then((module) => ({ default: module.NotificationGatewayPanel })),
-);
-const DailyBriefingPanel = lazy(() =>
-  import("./components/DailyBriefingPanel").then((module) => ({ default: module.DailyBriefingPanel })),
-);
 
 function App() {
   const { t, text } = useI18n();
@@ -1053,7 +1043,6 @@ function App() {
             )}
 
             {activeCognitiveView === "execution" && (
-              <Suspense fallback={<section className="cognitive-view-loading" aria-busy="true" />}>
               <section className="cognitive-view">
                 <section className="task-center-grid">
                   <DirectionSetupPanel
@@ -1349,7 +1338,6 @@ function App() {
                   syncPackage={deviceSyncPackage}
                 />
               </section>
-              </Suspense>
             )}
           </section>
 
