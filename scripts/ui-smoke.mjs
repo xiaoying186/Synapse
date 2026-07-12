@@ -690,7 +690,10 @@ async function assertLocalAppLaunchPreflight(page) {
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("local-app-launch-button").click();
   await page.getByTestId("local-app-launch-receipt").waitFor({ state: "visible", timeout: 10_000 });
-  await page.getByText("audit-local-app-", { exact: false }).waitFor({ state: "visible", timeout: 10_000 });
+  await page
+    .getByTestId("local-app-launch-receipt")
+    .getByText("audit-local-app-", { exact: false })
+    .waitFor({ state: "visible", timeout: 10_000 });
 }
 
 async function assertBrowserWriteStagingPreflight(page, name) {
