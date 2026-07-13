@@ -146,6 +146,7 @@ export function SettingsPanel({
               <span>{t("settings.storageDir")}</span>
               <input
                 value={draft.storage_data_dir}
+                placeholder="E:\\Synapse\\.synapse"
                 onChange={(event) =>
                   setDraft({ ...draft, storage_data_dir: event.currentTarget.value })
                 }

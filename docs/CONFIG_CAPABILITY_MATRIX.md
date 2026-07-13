@@ -10,7 +10,7 @@ This matrix records which `synapse.config.toml` areas are active in Synapse
 | `[safety] external_delivery_enabled` | active | yes | Release gates require it off by default |
 | `[safety] agent_execution_enabled` | active | yes | Controls Agent Harness/teams capability state |
 | `[safety] script_execution_enabled` | active | yes | Independently controls hash-locked Skill Library script execution; release baseline requires false |
-| `[storage] data_dir` | active | yes | A non-empty relative path without `..`; installed desktop builds resolve it under the current user's AppData, while development fallback resolves it under the project root. Defaults to `.synapse`. The Settings page can preview and save this low-risk field with a synchronized local backup and atomic replacement; restart is required. |
+| `[storage] data_dir` | active | yes | A non-empty relative path without `..`, or a local absolute disk path such as `E:\Synapse\.synapse`. UNC/network paths and disk roots are rejected. Installed desktop builds resolve relative paths under the current user's AppData, while development fallback resolves them under the project root. Defaults to `.synapse`. The Settings page can preview and save this low-risk field with a synchronized local backup and atomic replacement; restart is required. |
 | `[scheduler]` | active | yes | Manual/background lease and safety status; background execution remains gated |
 | `[aggregation]` | active | partial | Fixture/manual/configured HTTP JSON source behind quarantine; `http_cross_check_urls` requires independent configured sources before a live Daily Briefing fetch |
 | `[browser]` | preview | partial | Read-only allowlist and inspection settings only |

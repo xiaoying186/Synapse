@@ -31,6 +31,14 @@ npm.cmd ci
 npm.cmd run tauri:dev
 ```
 
+## Local Production Deployment
+
+For private local use, keep the source checkout separate from the installed
+application. Synapse stages verified local releases beneath `E:\Synapse` by
+default, without modifying local knowledge or settings. See
+[LOCAL_DEPLOYMENT.md](LOCAL_DEPLOYMENT.md) for the staging and explicit install
+commands.
+
 ## Installer Status
 
 Windows NSIS packaging is the default public preview route and should only be

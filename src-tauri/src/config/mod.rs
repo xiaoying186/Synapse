@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{OnceLock, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -534,8 +534,8 @@ fn normalize_runtime_settings(
         return Err("mode must be lite or pro".to_string());
     }
     let storage_data_dir = request.storage_data_dir.trim().to_string();
-    if !is_safe_relative_storage_data_dir(&storage_data_dir) {
-        return Err("storage.data_dir must be a non-empty relative path without '..'".to_string());
+    if !is_safe_storage_data_dir(&storage_data_dir) {
+        return Err("storage.data_dir must be a non-empty relative path without '..' or a local absolute disk path".to_string());
     }
     if request.scheduler_poll_interval_seconds == 0
         || request.scheduler_poll_interval_seconds > 86_400
@@ -573,7 +573,7 @@ fn changed_runtime_setting_fields(current: &RuntimeConfig, next: &RuntimeConfig)
 fn update_runtime_settings_content(raw: &str, next: &RuntimeConfig) -> String {
     let updates = [
         ("system", "mode", format!("\"{}\"", next.mode)),
-        ("storage", "data_dir", format!("\"{}\"", next.storage_data_dir)),
+        ("storage", "data_dir", toml_string(&next.storage_data_dir)),
         (
             "scheduler",
             "background_loop_enabled",
@@ -668,7 +668,12 @@ pub(crate) fn storage_data_root() -> PathBuf {
 }
 
 pub(crate) fn storage_data_root_in(base: &Path, storage_data_dir: &str) -> PathBuf {
-    base.join(storage_data_dir)
+    let configured = PathBuf::from(storage_data_dir);
+    if configured.is_absolute() {
+        configured
+    } else {
+        base.join(configured)
+    }
 }
 
 fn project_root() -> PathBuf {
@@ -773,10 +778,34 @@ fn read_toml_string(raw: &str, section: &str, key: &str) -> Option<String> {
             continue;
         }
 
-        return Some(value.trim().trim_matches('"').to_string());
+        return Some(unescape_toml_basic_string(value.trim().trim_matches('"')));
     }
 
     None
+}
+
+fn unescape_toml_basic_string(value: &str) -> String {
+    let mut result = String::new();
+    let mut chars = value.chars();
+    while let Some(character) = chars.next() {
+        if character != '\\' {
+            result.push(character);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => result.push('\\'),
+            Some('"') => result.push('"'),
+            Some('n') => result.push('\n'),
+            Some('r') => result.push('\r'),
+            Some('t') => result.push('\t'),
+            Some(other) => {
+                result.push('\\');
+                result.push(other);
+            }
+            None => result.push('\\'),
+        }
+    }
+    result
 }
 
 fn validate_config(mut config: RuntimeConfig) -> RuntimeConfig {
@@ -810,9 +839,9 @@ fn validate_config(mut config: RuntimeConfig) -> RuntimeConfig {
         config.scheduler_poll_interval_seconds = 1;
     }
 
-    if !is_safe_relative_storage_data_dir(&config.storage_data_dir) {
+    if !is_safe_storage_data_dir(&config.storage_data_dir) {
         config.warnings.push(format!(
-            "storage.data_dir must be a non-empty relative path without '..'; using {DEFAULT_STORAGE_DATA_DIR}."
+            "storage.data_dir must be a non-empty relative path without '..' or a local absolute disk path; using {DEFAULT_STORAGE_DATA_DIR}."
         ));
         config.storage_data_dir = DEFAULT_STORAGE_DATA_DIR.to_string();
     }
@@ -828,6 +857,35 @@ fn is_safe_relative_storage_data_dir(value: &str) -> bool {
         && path
             .components()
             .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
+}
+
+fn is_safe_storage_data_dir(value: &str) -> bool {
+    let value = value.trim();
+    if is_safe_relative_storage_data_dir(value) {
+        return true;
+    }
+
+    let path = Path::new(value);
+    if !path.is_absolute() || path.components().any(|component| matches!(component, Component::ParentDir)) {
+        return false;
+    }
+
+    #[cfg(windows)]
+    {
+        matches!(path.components().next(),
+            Some(Component::Prefix(prefix))
+                if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_))
+        ) && path.components().any(|component| matches!(component, Component::Normal(_)))
+    }
+
+    #[cfg(not(windows))]
+    {
+        path.components().any(|component| matches!(component, Component::Normal(_)))
+    }
+}
+
+fn toml_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 #[cfg(test)]
@@ -901,12 +959,18 @@ mod tests {
     }
 
     #[test]
-    fn validates_storage_data_dir_as_a_non_empty_project_relative_path() {
+    fn validates_storage_data_dir_as_relative_or_local_absolute_path() {
         let valid = validate_config(RuntimeConfig {
             storage_data_dir: "private-data/synapse".to_string(),
             ..RuntimeConfig::default()
         });
         assert_eq!(valid.storage_data_dir, "private-data/synapse");
+
+        let absolute = validate_config(RuntimeConfig {
+            storage_data_dir: r"E:\Synapse\.synapse".to_string(),
+            ..RuntimeConfig::default()
+        });
+        assert_eq!(absolute.storage_data_dir, r"E:\Synapse\.synapse");
 
         let invalid = validate_config(RuntimeConfig {
             storage_data_dir: "../outside-project".to_string(),
@@ -917,6 +981,12 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.contains("storage.data_dir")));
+
+        let network = validate_config(RuntimeConfig {
+            storage_data_dir: r"\\server\synapse".to_string(),
+            ..RuntimeConfig::default()
+        });
+        assert_eq!(network.storage_data_dir, DEFAULT_STORAGE_DATA_DIR);
     }
 
     #[test]
@@ -924,6 +994,10 @@ mod tests {
         assert_eq!(
             storage_data_root_in(Path::new("runtime-base"), ".synapse"),
             PathBuf::from("runtime-base").join(".synapse")
+        );
+        assert_eq!(
+            storage_data_root_in(Path::new("runtime-base"), r"E:\Synapse\.synapse"),
+            PathBuf::from(r"E:\Synapse\.synapse")
         );
     }
 
@@ -1031,6 +1105,16 @@ webhook_url = ""
             Some("true".to_string())
         );
         assert!(updated.contains("webhook_url = \"\""));
+
+        let absolute = RuntimeConfig {
+            storage_data_dir: r"E:\Synapse\.synapse".to_string(),
+            ..RuntimeConfig::default()
+        };
+        let updated = update_runtime_settings_content(raw, &absolute);
+        assert_eq!(
+            read_toml_string(&updated, "storage", "data_dir"),
+            Some(r"E:\Synapse\.synapse".to_string())
+        );
     }
 
     #[test]
