@@ -23,10 +23,11 @@ pro_dimensions = ["strict", "accurate"]
 mode_lock_auto = true
 
 [storage]
-# Relative to the active local-data base. Installed desktop builds use the
-# current user's application-data directory; development fallback uses the
-# project root. The default preserves the existing local store in development.
-# Absolute paths and parent-directory traversal are rejected at runtime.
+# Relative paths use the active local-data base. For a long-lived production
+# Zhishu store, a local absolute disk path such as "E:\\Synapse\\.synapse" is
+# supported. Network/UNC paths, disk roots, and parent-directory traversal are
+# rejected at runtime. Use scripts/migrate-synapse-data.ps1 before switching an
+# existing store so the old directory remains a rollback source.
 data_dir = ".synapse"
 
 [storage.l0]

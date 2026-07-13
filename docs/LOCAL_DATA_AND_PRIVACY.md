@@ -10,7 +10,8 @@ Installed desktop builds store data under the current user's application-data
 directory, with `.synapse/` as the default relative data directory. Development
 and non-Tauri tools use `.synapse/` in the repository workspace. This directory
 is ignored by Git and should not be committed. Set `[storage].data_dir` in
-`synapse.config.toml` to another non-empty relative directory; absolute paths
+`synapse.config.toml` to another non-empty relative directory or a local
+absolute disk path such as `E:\Synapse\.synapse`. Network/UNC paths, disk roots,
 and `..` traversal are rejected to prevent an accidental storage escape.
 
 For an installed desktop build, an optional `synapse.config.toml` placed in the

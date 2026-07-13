@@ -8,16 +8,38 @@ the same directory.
 E:\Synapse\
   app\        # installed Synapse binaries (only changed with -Install)
   releases\   # immutable, versioned installer copies and SHA-256 files
-  userdata\   # local knowledge, memory, and application data
-  config\     # local deployment configuration
+  .synapse\   # Zhishu knowledge, memory, tasks, audit, snapshots, SQLite
+  userdata\   # optional user-managed imports and exports
+  config\     # optional deployment configuration copies
   plugins\    # Baigong extensions
   models\     # local model assets
   logs\       # local logs
   backups\    # user-managed backups
 ```
 
-`userdata`, `config`, `plugins`, `models`, `logs`, and `backups` are never
-deleted or replaced by the release staging command.
+`.synapse`, `userdata`, `config`, `plugins`, `models`, `logs`, and `backups`
+are never deleted or replaced by the release staging command.
+
+## Zhishu Data Root
+
+For a long-lived local installation, set the runtime `storage.data_dir` to
+`E:\Synapse\.synapse` in **Settings**. This moves the complete persistent
+Synapse data boundary off the system drive: Zhishu knowledge and memory,
+Xingtai task records, Taiheng audits and snapshots, and local SQLite files all
+use that root after restart.
+
+For an existing store, copy it first and keep the source as a rollback point:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\migrate-synapse-data.ps1 `
+  -SourceDataRoot "$env:APPDATA\com.synapse.local\.synapse" `
+  -DestinationDataRoot "E:\Synapse\.synapse" `
+  -ConfirmMigration
+```
+
+The migration copies every file to a staging directory, compares SHA-256 hashes,
+then writes a receipt. It never removes the source and never changes runtime
+configuration; set the destination in Settings and restart only after it passes.
 
 ## Stage A Verified Release
 
