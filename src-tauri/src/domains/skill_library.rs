@@ -396,9 +396,17 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn built_in_system_inventory_script_executes_readonly_and_returns_json() {
+    fn built_in_system_inventory_script_is_hash_locked() {
         assert_eq!(hash_file(&system_inventory_script_path()).unwrap(), SYSTEM_INVENTORY_SHA256);
         assert_eq!(embedded_script_hash(), SYSTEM_INVENTORY_SHA256);
+        assert!(SYSTEM_INVENTORY_SCRIPT.contains("mutation_started = $false"));
+        assert!(SYSTEM_INVENTORY_SCRIPT.contains("network_started = $false"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "requires a non-sandboxed Windows PowerShell host"]
+    fn built_in_system_inventory_script_executes_readonly_and_returns_json() {
         let output = run_system_inventory_script().unwrap();
         assert_eq!(output.exit_code, 0);
         assert!(!output.truncated);

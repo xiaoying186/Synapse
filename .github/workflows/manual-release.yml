@@ -161,6 +161,21 @@ jobs:
         run: cargo test computer_diagnostics
         working-directory: src-tauri
 
+      - name: Safe system inventory script smoke
+        shell: pwsh
+        run: |
+          $raw = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File src-tauri/scripts/safe-system-inventory.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Safe system inventory script exited with code $LASTEXITCODE."
+          }
+          $result = $raw | ConvertFrom-Json
+          if ($result.schema -ne "synapse.skill.safe-system-inventory.v1") {
+            throw "Safe system inventory script returned an unexpected schema."
+          }
+          if ($result.mutation_started -or $result.network_started) {
+            throw "Safe system inventory script violated its no-mutation/no-network contract."
+          }
+
       - name: Rust Skill Library acceptance
         run: cargo test skill_library
         working-directory: src-tauri
